@@ -1,0 +1,18 @@
+{
+  "name": "方块发布站",
+  "tagline": "一键多平台发布视频",
+  "contactEmail": "1994763499@qq.com",
+  "repository": "jonzhao819-del/blockcast-studio",
+  "repositoryPublished": true,
+  "license": "MIT",
+  "release": {
+    "version": "0.4.0",
+    "tag": "v0.4.0",
+    "asset": "Blockcast-Studio-Setup-0.4.0.exe",
+    "sizeBytes": 104152377,
+    "sha256": "D77A62426B4FA7A93119E2644B58B6D33475474F12E830B05DD31BB96B309C24",
+    "published": false,
+    "signed": false,
+    "verifiedAt": "2026-10-30"
+  }
+}

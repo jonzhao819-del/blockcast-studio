@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="方块发布站：一键多平台发布视频的 Windows 本地助手。现在支持抖音、B站、视频号。免费使用，网站无需注册或登录，最终发布由你确认。">
+  <meta name="theme-color" content="#f4f2e9">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>方块发布站 / 一键多平台发布视频</title>
+  <link rel="icon" href="./assets/block.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+  <script src="./site.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到主要内容</a>
+  <header class="site-header container">
+    <a class="brand" href="#main" aria-label="方块发布站首页"><img src="./assets/block.svg" alt="" width="40" height="40"><span>方块发布站<small>BLOCKCAST STUDIO</small></span></a>
+    <nav aria-label="主要导航"><a href="#features">功能状态</a><a href="#privacy">隐私说明</a><a href="#opensource">开源入口</a><a class="nav-download" href="#download">获取助手 <span aria-hidden="true">↓</span></a></nav>
+  </header>
+  <main id="main">
+    <section class="hero container" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="pixel-dot" aria-hidden="true"></span> 本地运行 · 免费使用 · 公开测试版</p>
+        <h1 id="hero-title">方块发布站<span>一键多平台<br>发布视频<span class="pixel-period" aria-hidden="true">.</span></span></h1>
+        <p class="hero-description">现在支持<strong>抖音、B站、视频号</strong>。<br>把重复填写交给助手，把最后的发布决定留给你。</p>
+        <div class="hero-actions"><a class="button primary" href="#download">获取 Windows 助手 <span aria-hidden="true">↓</span></a><a class="text-link" href="#how-it-works">看看如何使用 <span aria-hidden="true">↗</span></a></div>
+        <p class="microcopy">网站无需登录。下载后，在本机助手中连接平台账号。</p>
+      </div>
+      <div class="workflow-art" aria-label="工作流程示意：一份素材准备到三个平台，最后由用户复核确认">
+        <div class="art-topline"><span>你的创作工作台</span><span class="mono">LOCAL FIRST</span></div>
+        <div class="art-grid">
+          <div class="material-tile"><svg viewBox="0 0 64 64" width="64" height="64" aria-hidden="true"><path d="M12 8h32v8h8v40H12z" fill="#f4f2e9" stroke="#243e30" stroke-width="4"/><path d="M24 24v20l16-10z" fill="#397348"/></svg><strong>一份素材</strong><span>视频 + 封面 + 信息</span></div>
+          <div class="pixel-route" aria-hidden="true"><span></span><b>↓</b><span></span></div>
+          <div class="platform-tiles"><div><span class="platform-symbol dy">抖</span><strong>抖音</strong></div><div><span class="platform-symbol bili">B</span><strong>B站</strong></div><div><span class="platform-symbol wx">视</span><strong>视频号</strong></div></div>
+          <div class="review-strip"><span aria-hidden="true">▣</span><div><strong>最后一步，由你确认</strong><span>在真实投稿页检查后，再决定发布</span></div></div>
+        </div>
+        <p class="art-caption">工作流程示意 · 不是实时任务或上传进度</p>
+      </div>
+    </section>
+    <div class="principles"><div class="container"><span><b>01</b> 不必重复填写</span><span><b>02</b> 保留平台原生页面</span><span><b>03</b> 不替你擅自发布</span></div></div>
+    <section id="how-it-works" class="section container" aria-labelledby="steps-title">
+      <div class="section-heading"><div><p class="eyebrow">从下载，到真实投稿页</p><h2 id="steps-title">三步，把创作放回主角位置。</h2></div><p>适合个人创作者，也适合运营团队成员<br>在各自的电脑上使用。</p></div>
+      <ol class="steps"><li><span class="step-number">01</span><h3>安装本机助手</h3><p>下载 Windows 安装包，完成安装。官网不设账号，不需要扫码才能查看或下载。</p></li><li><span class="step-number">02</span><h3>准备一次，分别调整</h3><p>在助手专用 Edge 中登录平台，选择视频与封面。填写通用信息，再调整各平台标题、话题与合集。</p></li><li><span class="step-number">03</span><h3>真实复核，再确认发布</h3><p>打开三个平台的真实投稿页，检查视频、封面和文字。验证码与风控由本人完成，最终发布由你确认。</p></li></ol>
+    </section>
+    <section id="features" class="section status-section" aria-labelledby="status-title"><div class="container">
+      <div class="section-heading"><div><p class="eyebrow">功能状态 / v{{VERSION}}</p><h2 id="status-title">能做什么，边界也说清楚。</h2></div><p>以下状态来自 {{VERIFIED_AT}} 的本机测试。<br>不代表所有电脑、账号和平台版本均已验证。</p></div>
+      <div class="feature-grid">
+        <article class="feature-card"><span class="badge good">本机验证</span><h3>三个平台，真实上传</h3><p>抖音、B站、视频号已使用固定测试视频验证上传与投稿表单连接。不是平台官方 API，而是实际网页适配。</p></article>
+        <article class="feature-card"><span class="badge good">本机验证</span><h3>标题、标签、简介</h3><p>真实填写并读回文字与原生话题节点；按账号读取合集候选与 ID。B站分区与当前真实页面交叉核对。</p></article>
+        <article class="feature-card"><span class="badge good">按真实信号显示</span><h3>进度，不播放假动画</h3><p>跟踪上传请求与页面状态。分片字节只表示当前请求；仅当平台提供整体百分比时展示整体进度。</p></article>
+        <article class="feature-card"><span class="badge caution">需要人工确认</span><h3>封面、定时与可见性</h3><p>封面裁剪和最终保存、定时日期仍需到平台复核。可见性依平台实际控件；B站真实封面专项尚未完成。</p></article>
+        <article class="feature-card"><span class="badge caution">保护逻辑已测试</span><h3>发布权始终在你手里</h3><p>最终点击前要求人工确认，识别不明确则停止。本轮未执行真实发布，不宣称正式发布全链路已验收。</p></article>
+        <article class="feature-card"><span class="badge neutral">暂未提供</span><h3>团队协作的边界</h3><p>团队成员可独立安装使用。目前不提供云端账号托管、共享素材库、团队权限或在线审批。</p></article>
+      </div>
+    </div></section>
+    <section id="download" class="section container" aria-labelledby="download-title">
+      <div class="download-panel"><div class="download-intro"><p class="eyebrow">你的下一块创作工具</p><h2 id="download-title">把工作台，装进电脑。</h2><p>Windows x64 安装包 · v{{VERSION}} 测试版<br>安装后本地运行，不需要购买服务器。</p><div class="download-action">{{DOWNLOAD_CONTROL}}</div><p id="download-state" class="download-state">{{DOWNLOAD_STATUS}}</p><p class="file-meta mono">{{ASSET}}<br>{{SIZE}} MiB · {{SIGNATURE_STATUS}}</p></div>
+        <div class="download-notes"><h3>下载前，请先知道</h3><ul><li>需要 Windows x64 与 Microsoft Edge；当前仅完成开发机安装及升级验证，Windows 10 和第二台干净电脑仍待测试。</li><li>当前安装包未做 Authenticode 签名，Windows 可能提示未知发布者。请核对下载来源和下方 SHA-256；有疑虑时不要运行。</li><li>不建议关闭杀毒软件或系统安全防护。SHA-256 用于核对文件一致性，不能代替代码签名与安全审查。</li><li>macOS、Linux、Windows ARM 原生安装包暂未提供。</li></ul><details><summary>查看安装包 SHA-256 校验值</summary><code id="checksum">{{SHA256}}</code><button id="copy-checksum" class="copy-button" type="button">复制校验值</button><span id="copy-status" role="status" aria-live="polite"></span><p>Windows PowerShell：<code>Get-FileHash -Algorithm SHA256 -LiteralPath &quot;安装包完整路径&quot;</code></p></details></div></div>
+    </section>
+    <section id="privacy" class="section privacy-section" aria-labelledby="privacy-title"><div class="container privacy-layout">
+      <div><p class="eyebrow">少收集，多留在本机</p><h2 id="privacy-title">账号是你的。<br>电脑也是你的。</h2><p class="section-lead">官网负责介绍和下载，助手负责本地操作。两者分开，不把平台登录交给网站。</p></div>
+      <div class="privacy-list"><article><span class="privacy-index">01</span><div><h3>官网不设登录，不放追踪脚本</h3><p>当前页面不收集注册信息，不加载第三方统计、字体或追踪脚本。GitHub 等托管与下载服务仍可能按其政策处理 IP 和请求记录。</p></div></article><article><span class="privacy-index">02</span><div><h3>平台登录留在专用 Edge 中</h3><p>助手使用独立的本地浏览器配置，不读取日常 Edge 的登录资料。验证码、二维码和风控验证由你本人完成，不提供绕过功能。</p></div></article><article><span class="privacy-index">03</span><div><h3>视频直接交给平台投稿页</h3><p>视频与封面不经过项目运营方的上传服务器。内容仍会发送给你选择的平台；这不等于“所有数据都不出电脑”。</p></div></article><article><span class="privacy-index">04</span><div><h3>诊断信息，请先检查再分享</h3><p>日志与设置保存在本机，敏感凭证有脱敏处理。但诊断文件、截图仍可能包含账号信息、合集名称和文件路径，请勿直接公开。</p></div></article></div>
+    </div></section>
+    <section id="opensource" class="section container" aria-labelledby="opensource-title"><div class="opensource-panel"><div><p class="eyebrow">BUILD IN THE OPEN</p><h2 id="opensource-title">免费使用，一起把它打磨好。</h2><p>采用 MIT 许可证，面向个人创作者与运营团队成员。<br>欢迎反馈真实场景，也欢迎开发者参与平台适配。</p><p class="license-note">{{SOURCE_STATUS}}</p></div><div class="opensource-actions">{{SOURCE_CONTROL}}{{ISSUE_CONTROL}}<a class="text-link" href="mailto:{{CONTACT_EMAIL}}">联系项目：{{CONTACT_EMAIL}}</a></div></div></section>
+    <section class="faq container" aria-labelledby="faq-title"><h2 id="faq-title">你可能还想知道</h2><details><summary>打开网站后，需要扫码或注册吗？</summary><p>不需要。这个网站只是公开介绍和下载入口。安装助手后，你才需要在抖音、B站、视频号的真实平台页面登录自己的账号。</p></details><details><summary>这是平台官方合作产品吗？</summary><p>不是。方块发布站是独立的网页辅助工具，不代表抖音、B站或视频号，也不承诺绕过平台规则。请遵守各平台规则和内容要求，平台页面改版可能影响适配。</p></details><details><summary>可以完全无人值守地发布吗？</summary><p>当前不以无人值守为目标。上传和填写由助手辅助，封面、定时与最终内容需要你在平台原生页面确认；验证码、风控和最终发布也由你负责。</p></details><details><summary>遇到问题，应该发什么给项目维护者？</summary><p>请说明 Windows、Edge 和助手版本、出问题的平台、操作步骤及错误提示。截图先遮住个人资料；不要发送 Cookie、密码、二维码、完整浏览器配置或未检查的诊断文件。</p></details></section>
+  </main>
+  <footer class="container footer"><a class="brand" href="#main"><img src="./assets/block.svg" alt="" width="32" height="32"><span>方块发布站</span></a><p>把重复交给工具，把创作留给自己。</p><a href="mailto:{{CONTACT_EMAIL}}">{{CONTACT_EMAIL}}</a></footer>
+</body>
+</html>

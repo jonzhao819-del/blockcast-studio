@@ -1,0 +1,52 @@
+{
+  "name": "blockcast-desktop",
+  "version": "0.4.0",
+  "private": true,
+  "license": "MIT",
+  "author": "Blockcast Studio",
+  "description": "方块发布站 - 抖音、bilibili、视频号桌面辅助发布器",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "check": "node --check main.js && node --check preload.js && node --check renderer/app.js",
+    "test": "npm run check && node tests/static-check.js && node --test tests/hardening-check.js && node tests/cover-adapter-check.js && npm run test:image && npm run test:ui",
+    "test:ui": "electron tests/workflow-integration.js",
+    "test:image": "electron tests/cover-image-integration.js",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --win nsis",
+    "release": "powershell -ExecutionPolicy Bypass -File ./scripts/build-release.ps1"
+  },
+  "devDependencies": {
+    "electron": "43.8.4",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "com.blockcast.studio",
+    "productName": "方块发布站",
+    "asar": true,
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "lib/**/*",
+      "renderer/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "artifactName": "Blockcast-Studio-Setup-${version}.${ext}",
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "方块发布站",
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}

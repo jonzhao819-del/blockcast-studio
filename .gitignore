@@ -1,0 +1,35 @@
+node_modules/
+dist/
+dist-*/
+.site/
+coverage/
+*.log
+*.log.*
+work/
+**/edge-creator-profile/
+**/User Data/
+**/Cookies
+**/Cookies-journal
+**/Login Data
+**/Web Data
+**/Local State
+**/settings.json
+*.har
+.env
+.env.*
+!.env.example
+*.pem
+*.pfx
+*.p12
+*.key
+*.cer
+*.mp4
+*.mov
+*.mkv
+*.webm
+screenshots/
+diagnostics/
+test-results/
+playwright-report/
+.DS_Store
+Thumbs.db

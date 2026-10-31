@@ -1,6 +1,6 @@
 # 干净 Windows 最终验收
 
-1. 将 `Blockcast-Studio-Setup-0.4.1.exe` 复制到一台 Windows 10 22H2 或 Windows 11 x64 测试电脑。此项是待执行清单，不代表已通过。
+1. 将 `Blockcast-Studio-Setup-0.4.2.exe` 复制到一台 Windows 10 22H2 或 Windows 11 x64 测试电脑。此项是待执行清单，不代表已通过。
 2. 对照与安装包一并提供的 `SHA256SUMS.txt` 校验 SHA-256。当前包未签名，有疑虑时不要运行，不要关闭系统防护。
 3. 安装并启动，确认桌面/开始菜单快捷方式、像素 UI、一个 Edge 窗口三个平台标签页。
 4. 分别在 100%、125%、150% 缩放下检查 1920×1080 或 1366×768 窗口，不应出现控件遮挡。
@@ -8,12 +8,12 @@
 6. 可选：在 PowerShell 运行以下只读采集命令（会在桌面生成 JSON）。先检查报告和截图有无个人信息，再决定是否私下分享，不要直接公开完整诊断：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\collect-clean-machine-report.ps1 -Installer .\dist\Blockcast-Studio-Setup-0.4.1.exe
+powershell -ExecutionPolicy Bypass -File .\scripts\collect-clean-machine-report.ps1 -Installer .\dist\Blockcast-Studio-Setup-0.4.2.exe
 ```
 
 验证码、风控、SmartScreen 与扫码均由用户本人完成；测试不得点击最终发布。
 
-## 0.4.1 重点复测
+## 0.4.2 重点复测
 
 - 只有一个“选择主视频”入口，其下方提示到平台手动上传封面。
 - 在专用 Edge 登录三个平台后，分别切换标签页；确认连接状态能恢复。
@@ -22,3 +22,11 @@ powershell -ExecutionPolicy Bypass -File .\scripts\collect-clean-machine-report.
 - 重载工作台或重启应用，确认主视频与标题简介恢复；不恢复最终发布勾选。
 - 移动或修改所选视频后重启，应要求重新选择该视频，同时保留文字信息。
 - 三个平台的封面都在各自投稿页手动完成；不执行最终发布。
+
+## 新流程与浏览器复测
+
+- 无 Edge/Chrome 的 Windows 10 22H2 或 Windows 11 x64 上，启动后显示内置浏览器，无需下载外部浏览器。
+- 依次检查三平台登录、上传、话题、封面手动设置和平台草稿；不执行最终发布。
+- 上传按钮在信息表单之前，空标题即可上传，上传期间可编辑；一个平台失败仅重试该平台。
+- 下方三项人工复核不会因自动填写成功而自动勾选。
+- 切换浏览器前保存平台草稿；切换回来，原专用登录状态保留。

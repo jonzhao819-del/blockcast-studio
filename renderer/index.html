@@ -1,69 +1,41 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"><title>方块发布站</title><link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="metadata.css"><link rel="stylesheet" href="footer.css"></head>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"><title>方块发布站</title><link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="metadata.css"><link rel="stylesheet" href="footer.css"><link rel="stylesheet" href="workflow.css"></head>
 <body>
-  <header class="topbar">
-    <div class="logo"><i>◆</i><div><b>方块发布站</b><small>REAL SESSION DESKTOP</small></div></div>
-    <div class="safety"><span></span>本机会话 · 人工发布锁</div>
-  </header>
-  <main>
-    <section class="hero">
-      <div><p>CONNECT · INSPECT · REVIEW</p><h1>真实平台发布控制台</h1><span>一个专用 Edge 窗口，三个平台标签页，最终发布由你确认。</span></div>
-      <button id="openAll">在 Edge 打开三个平台</button>
-    </section>
-
-    <nav class="steps">
-      <div class="active"><i>01</i><b>素材与信息</b><small>FILES & META</small></div>
-      <div><i>02</i><b>一键准备草稿</b><small>UPLOAD & FILL</small></div>
-      <div><i>03</i><b>真实复核与发布</b><small>REVIEW & CONFIRM</small></div>
-    </nav>
-
-    <section class="workspace">
-      <div class="section-head"><div><em>01</em><h2>平台连接状态</h2></div><span>扫码和验证码只在 Edge 原生标签页完成</span></div>
-      <div class="platform-grid" id="platformGrid"></div>
-
-      <div class="section-head second"><div><em>02</em><h2>发布信息配置</h2></div><span>平台覆盖字段优先于通用字段</span></div>
-      <div class="metadata-card">
-        <div class="metadata-common">
-          <label>通用标题<input id="commonTitle" maxlength="80" placeholder="填写作品标题"></label>
-          <label>通用简介<textarea id="commonDescription" rows="3" placeholder="填写作品简介"></textarea></label>
-          <label>话题关键词<input id="commonTags" placeholder="用逗号分隔；同步时仍需选择平台真实候选"></label>
-          <div class="metadata-row"><label>可见性<select id="commonVisibility"><option value="">保持平台当前设置</option><option>公开</option><option>仅自己可见</option></select></label><label>定时发布<input id="commonSchedule" type="datetime-local"></label></div>
-        </div>
-        <div class="override-grid">
-          <article data-override="douyin"><b>抖音独立设置</b><button class="probe-options" data-probe="douyin">读取账号真实候选</button><input data-field="title" placeholder="平台标题（留空则用通用标题）"><textarea data-field="description" rows="2" placeholder="平台简介（留空则用通用简介）"></textarea><input data-field="tags" placeholder="平台话题，用逗号分隔"><select data-field="visibility"><option value="">保持当前可见性</option><option>公开</option><option>好友可见</option><option>仅自己可见</option></select><select data-field="partition"><option value="">此平台无必选分区</option></select><select data-field="collection"><option value="">保持当前合集</option></select><input data-field="schedule" type="datetime-local"></article>
-          <article data-override="bilibili"><b>bilibili 独立设置</b><button class="probe-options" data-probe="bilibili">读取账号真实候选</button><input data-field="title" placeholder="平台标题（留空则用通用标题）"><textarea data-field="description" rows="2" placeholder="平台简介（留空则用通用简介）"></textarea><input data-field="tags" placeholder="平台标签，用逗号分隔"><select data-field="visibility"><option value="">保持当前可见性</option></select><select data-field="partition"><option value="">请选择真实分区</option></select><select data-field="collection"><option value="">保持当前合集</option></select><input data-field="schedule" type="datetime-local"></article>
-          <article data-override="wechat"><b>视频号独立设置</b><button class="probe-options" data-probe="wechat">读取账号真实候选</button><input data-field="title" placeholder="平台短标题（留空则用通用标题）"><textarea data-field="description" rows="2" placeholder="平台描述（留空则用通用简介）"></textarea><input data-field="tags" placeholder="平台话题，用逗号分隔"><select data-field="visibility"><option value="">保持当前可见性</option></select><select data-field="partition"><option value="">此平台无必选分区</option></select><select data-field="collection"><option value="">保持当前合集</option></select><input data-field="schedule" type="datetime-local"></article>
-        </div>
-        <div class="metadata-action"><span>分类和合集按当前账号真实候选填写。定时设置、封面上传及平台不支持自动确认的项目，请在真实投稿页完成；最终发布前逐项复核。</span></div>
-      </div>
-
-      <div class="section-head second"><div><em>03</em><h2>真实素材通道</h2></div><span>文件直接交给各平台页面，不经过中间服务器</span></div>
-      <div class="media-grid">
-        <button class="media-box" data-kind="video"><i>▶</i><div><b>选择主视频</b><span id="videoName">尚未选择</span></div><em>本地文件</em></button>
-      </div>
-      <p class="manual-cover-note">封面需要发布者在各平台真实投稿页手动上传，并确认裁剪与保存。</p>
-      <div class="attach-bar"><div id="mediaHint">选择视频并填写信息，然后一次生成三个平台的待复核草稿。</div><button id="prepareAll" disabled>一键准备三个平台草稿</button></div>
-
-      <div class="section-head second"><div><em>04</em><h2>准备状态</h2></div><span>仅展示真实上传、转码与字段结果</span></div>
-      <div class="inspector" id="inspector"><p>等待平台页面连接…</p></div>
-
-      <div class="review-bar">
-        <div><b>最终复核</b><span>切换 Edge 中三个真实投稿草稿页，确认封面、标题、话题、分区和合集。</span></div>
-        <div class="review-actions"><button data-review="douyin">检查抖音</button><button data-review="bilibili">检查 B 站</button><button data-review="wechat">检查视频号</button></div>
-      </div>
-      <div class="publish-lock">
-        <label><input type="checkbox" id="consent"><span></span>我已在三个真实投稿页逐项确认，允许发布器点击各平台最终发布按钮</label>
-        <button id="publishAll" disabled>⚑ 最终发布到三个平台</button>
-      </div>
-      <div class="results" id="results"></div>
-      <footer class="app-footer">
-        <span id="runtimeInfo">正在读取运行环境…</span>
-        <div><button id="exportDiagnostics">导出字段诊断</button><button id="showLogs">查看脱敏日志</button><button id="resetLogins">清除专用登录状态</button></div>
-      </footer>
-    </section>
-  </main>
-  <div class="toast" id="toast"></div>
-  <script src="app.js"></script>
-</body>
-</html>
+ <header class="topbar"><div class="logo"><i>◆</i><div><b>方块发布站</b><small>CREATE · UPLOAD · REVIEW</small></div></div><div class="safety"><span></span>本机发布 · 最终由你确认</div></header>
+ <main>
+  <section class="hero"><div><h1>先上传，再把内容填好</h1><span>视频上传时继续编辑信息，三个平台分别推进。</span></div><button id="openAll">打开三个平台</button></section>
+  <nav class="steps" aria-label="发布步骤"><div class="active"><i>01</i><b>连接平台</b></div><div><i>02</i><b>上传视频</b></div><div><i>03</i><b>填写草稿</b></div><div><i>04</i><b>复核发布</b></div></nav>
+  <section class="workspace">
+   <section id="connectionSection" aria-labelledby="connectionTitle">
+    <div class="section-head"><div><em>01</em><h2 id="connectionTitle">连接平台</h2></div><label class="browser-choice">发布浏览器 <select id="browserSelect" aria-label="发布浏览器"></select></label></div>
+    <p id="browserHint" class="section-note">使用专用登录会话，保留你日常浏览器的数据。</p>
+    <div class="platform-grid" id="platformGrid"></div>
+   </section>
+   <section id="videoSection" aria-labelledby="videoTitle">
+    <div class="section-head second"><div><em>02</em><h2 id="videoTitle">上传主视频</h2></div><span>不用先填标题，上传时可以继续填写</span></div>
+    <div class="video-panel"><button class="media-box" data-kind="video"><i>▶</i><div><b id="videoButtonLabel">选择主视频，或拖到这里</b><span id="videoName">支持 MP4、MOV、MKV、WebM</span></div><em>本地文件</em></button>
+    <div class="upload-action"><button id="uploadAll" class="action-primary" disabled>开始上传至已连接平台</button><span id="mediaHint" role="status">选择主视频并连接平台后即可上传。</span></div></div>
+    <p class="manual-cover-note">封面需要你在各平台投稿页手动上传，并确认裁剪与保存。</p>
+   </section>
+   <section id="metadataSection" aria-labelledby="metadataTitle">
+    <div class="section-head second"><div><em>03</em><h2 id="metadataTitle">填写发布信息</h2></div><span>本机自动保存 · 上传时也能编辑</span></div>
+    <div class="metadata-card">
+     <div class="metadata-common"><label>通用标题<input id="commonTitle" maxlength="80" placeholder="给这条视频起一个标题"></label><label>通用简介<textarea id="commonDescription" rows="4" placeholder="写下内容简介"></textarea></label><label>话题关键词<input id="commonTags" placeholder="用逗号分隔，如：舞蹈,创作"></label><div class="metadata-row"><label>可见性<select id="commonVisibility"><option value="">保持平台当前设置</option><option>公开</option><option>仅自己可见</option></select></label><label>定时发布<input id="commonSchedule" type="datetime-local"></label></div></div>
+     <div class="override-grid"><details class="override-panel" data-override="douyin"><summary>抖音单独设置 <span>默认使用通用信息</span></summary><div class="override-fields"><button class="probe-options" data-probe="douyin">更新分区 / 合集选项</button><label>独立标题<input data-field="title" placeholder="平台标题（留空则用通用标题）"></label><label>独立简介<textarea data-field="description" rows="2" placeholder="平台简介（留空则用通用简介）"></textarea></label><label>独立话题<input data-field="tags" placeholder="平台话题，用逗号分隔"></label><label>独立可见性<select data-field="visibility"><option value="">保持当前可见性</option><option>公开</option><option>好友可见</option><option>仅自己可见</option></select></label><label>分区<select data-field="partition"><option value="">此平台无必选分区</option></select></label><label>合集<select data-field="collection"><option value="">保持当前合集</option></select></label><label>独立定时<input data-field="schedule" type="datetime-local"></label></div></details>
+<details class="override-panel" data-override="bilibili"><summary>B站单独设置 <span>默认使用通用信息</span></summary><div class="override-fields"><button class="probe-options" data-probe="bilibili">更新分区 / 合集选项</button><label>独立标题<input data-field="title" placeholder="平台标题（留空则用通用标题）"></label><label>独立简介<textarea data-field="description" rows="2" placeholder="平台简介（留空则用通用简介）"></textarea></label><label>独立话题<input data-field="tags" placeholder="平台标签，用逗号分隔"></label><label>独立可见性<select data-field="visibility"><option value="">保持当前可见性</option></select></label><label>分区<select data-field="partition"><option value="">请选择真实分区</option></select></label><label>合集<select data-field="collection"><option value="">保持当前合集</option></select></label><label>独立定时<input data-field="schedule" type="datetime-local"></label></div></details>
+<details class="override-panel" data-override="wechat"><summary>视频号单独设置 <span>默认使用通用信息</span></summary><div class="override-fields"><button class="probe-options" data-probe="wechat">更新分区 / 合集选项</button><label>独立标题<input data-field="title" placeholder="平台短标题（留空则用通用标题）"></label><label>独立简介<textarea data-field="description" rows="2" placeholder="平台描述（留空则用通用简介）"></textarea></label><label>独立话题<input data-field="tags" placeholder="平台话题，用逗号分隔"></label><label>独立可见性<select data-field="visibility"><option value="">保持当前可见性</option></select></label><label>分区<select data-field="partition"><option value="">此平台无必选分区</option></select></label><label>合集<select data-field="collection"><option value="">保持当前合集</option></select></label><label>独立定时<input data-field="schedule" type="datetime-local"></label></div></details></div>
+     <div class="metadata-action"><span id="fillHint" role="status">上传完成后，将信息填写到平台草稿。可以只处理一个平台。</span><button id="fillAll" disabled>填写到平台草稿</button></div>
+    </div>
+   </section>
+   <section id="reviewSection" aria-labelledby="reviewTitle">
+    <div class="section-head second"><div><em>04</em><h2 id="reviewTitle">补全封面，逐项复核</h2></div><span>无法自动核验的项目，由你确认</span></div>
+    <div class="review-grid" id="reviewGrid"></div>
+    <div class="publish-lock"><label><input type="checkbox" id="consent"><span></span>我已完成三个平台复核，允许逐个平台确认发布</label><button id="publishAll" disabled>最终发布到三个平台</button></div>
+    <p id="publishHint" class="section-note" role="status">封面、内容和发布设置全部核对后，才能进行最终发布。</p>
+   </section>
+   <footer class="app-footer"><span id="runtimeInfo">正在读取运行环境…</span><details class="support-tools"><summary>诊断与账号管理</summary><div><button id="exportDiagnostics">导出字段诊断</button><button id="showLogs">查看脱敏日志</button><button id="resetLogins">清除专用登录状态</button></div></details></footer>
+  </section>
+ </main>
+ <div class="toast" id="toast" role="status" aria-live="polite"></div><script src="app.js"></script>
+</body></html>

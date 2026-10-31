@@ -1,6 +1,6 @@
 {
   "name": "blockcast-desktop",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "private": true,
   "license": "MIT",
   "author": "Blockcast Studio",
@@ -9,11 +9,12 @@
   "scripts": {
     "start": "electron .",
     "check": "node --check main.js && node --check preload.js && node --check renderer/app.js",
-    "test": "npm run check && node tests/static-check.js && node --test tests/hardening-check.js tests/recovery-check.js && npm run test:ui",
+    "test": "npm run check && node tests/static-check.js && node --test tests/hardening-check.js tests/recovery-check.js tests/browser-check.js && npm run test:ui && npm run test:browser",
     "test:ui": "electron tests/workflow-integration.js",
     "pack": "electron-builder --dir",
     "dist": "electron-builder --win nsis",
-    "release": "powershell -ExecutionPolicy Bypass -File ./scripts/build-release.ps1"
+    "release": "powershell -ExecutionPolicy Bypass -File ./scripts/build-release.ps1",
+    "test:browser": "electron tests/embedded-browser-integration.js"
   },
   "devDependencies": {
     "electron": "43.8.4",

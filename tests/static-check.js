@@ -28,8 +28,8 @@ assert(adapters.includes('seasonId') && adapters.includes('dataList'), 'Account 
 assert(main.includes('最终发布到') && main.includes('showMessageBox'), 'Every real publish action must require native confirmation');
 assert(html.includes('Content-Security-Policy'), 'Renderer CSP is required');
 assert(html.includes('data-probe="douyin"') && html.includes('data-probe="bilibili"') && html.includes('data-probe="wechat"'), 'Each platform needs independent real-option controls');
-assert(html.includes('id="prepareAll"') && !html.includes('id="attachAll"') && !html.includes('id="syncMetadata"'), 'The primary workflow must be a single prepare-drafts action');
-assert(renderer.includes('waitForForm') && renderer.includes('Promise.all(jobs)'), 'The one-click workflow must wait for real forms and prepare platforms concurrently');
+assert(html.includes('id="uploadAll"') && html.includes('id="fillAll"'), 'Upload and metadata filling must be separate actions');
+assert(renderer.includes('waitForForm') && renderer.includes('Promise.all(ids.filter'), 'Platforms must progress independently while waiting for real forms');
 assert(preload.includes('webUtils.getPathForFile'), 'Drag/drop must resolve local paths through Electron webUtils');
 assert(!css.includes('fonts.googleapis.com'), 'Renderer must work offline');
 assert(pkg.build?.nsis && pkg.build?.win, 'Windows installer configuration is required');

@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('blockcast', {
   attachMedia: payload => ipcRenderer.invoke('media:attach', payload),
   fillPlatform: payload => ipcRenderer.invoke('platform:fill', payload),
   publish: id => ipcRenderer.invoke('platform:publish', id),
+  selectBrowser: id => ipcRenderer.invoke('app:select-browser', id),
   runtimeInfo: () => ipcRenderer.invoke('app:runtime-info'),
   showLogs: () => ipcRenderer.invoke('app:show-logs'),
   resetLogins: () => ipcRenderer.invoke('app:reset-logins'),

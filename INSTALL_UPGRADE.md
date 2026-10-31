@@ -3,7 +3,7 @@
 ## 支持环境
 
 - Windows 10 22H2 或 Windows 11，x64。
-- Microsoft Edge 必须已安装并可正常更新。
+- 无需预装 Edge；优先使用标准位置的 Edge 或 Chrome，也可选择随安装包提供的内置 Chromium。浏览器首次切换需登录对应专用会话。
 - 建议至少 4 GB 可用内存和 1 GB 可用磁盘空间，视频文件空间另计。
 
 ## 安装

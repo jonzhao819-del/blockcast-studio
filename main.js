@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, crashReporter } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, crashReporter, session } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -9,10 +9,15 @@ const { assertPlatform, validateMedia, validatePayload, summarizeResults, truste
 const { createLogger } = require('./lib/logger');
 const { createSettings } = require('./lib/settings');
 const { buildInspectExpression, buildProbeExpression, buildFillExpression, buildPublishExpression } = require('./lib/platform-adapters');
+const { availableBrowsers, chooseBrowser, profileName } = require('./lib/browsers');
+const { createEmbeddedBrowser } = require('./lib/embedded-browser');
 const { randomUUID } = require('crypto');
 const { uploadDecision, sameMedia } = require('./lib/upload-recovery');
 
 let edgePort = null;
+let activeBrowser;
+let embeddedBrowser;
+let switchingBrowser = false;
 const PLATFORMS = {
   douyin: { name: '抖音', url: 'https://creator.douyin.com/creator-micro/content/upload', hosts: ['creator.douyin.com'], publishTexts: ['发布', '立即发布'] },
   bilibili: { name: 'bilibili', url: 'https://member.bilibili.com/platform/upload?page_from=creative_home_top_upload', hosts: ['member.bilibili.com', 'passport.bilibili.com'], publishTexts: ['立即投稿', '投稿', '发布'] },
@@ -35,7 +40,7 @@ const controllerUrl = pathToFileURL(path.join(__dirname, 'renderer', 'index.html
 const disconnectState = status => ({ connected: false, status, readyToPublish: false, formReady: false, fields: {}, options: {}, progress: null, bytesSent: null, bytesTotal: null, networkInFlight: 0, uploadStage: 'idle' });
 const cdpClients = new Map();
 const platformState = new Map(Object.keys(PLATFORMS).map(id => [id, {
-  id, connected: false, status: '未在 Edge 中打开', url: '', progress: null,
+  id, connected: false, status: '未在浏览器 中打开', url: '', progress: null,
   uploadStage: 'idle', fields: {}, options: {}, lastSeen: null
 }]));
 
@@ -59,11 +64,12 @@ function handle(channel, handler) {
   ipcMain.handle(channel, async (event, value) => {
     if (!trustedSender(event, controllerWindow?.webContents, controllerUrl)) throw new Error('拒绝非工作台页面调用');
     const id = typeof value === 'string' ? value : value?.id;
+    if(switchingBrowser && (channel.startsWith('platform:') && channel!=='platform:list' || ['app:select-browser','app:reset-logins','media:attach'].includes(channel)))return {ok:false,error:'正在切换浏览器，请稍后再操作'};
     if (/^platform:(open|focus|reload|probe-options|fill|publish)$/.test(channel) || channel === 'media:attach') assertPlatform(id);
     const mutating = /^(platform:(reload|probe-options|fill|publish)|media:attach)$/.test(channel);
     if (mutating && operations.has(id)) return { ok: false, error: '该平台正在执行任务，请稍后再试' };
     if (mutating) operations.add(id);
-    try { return await handler(event, value); }
+    try { if(mutating && inspectingPlatforms.has(id))await inspectingPlatforms.get(id); return await handler(event, value); }
     finally { if (mutating) operations.delete(id); }
   });
 }
@@ -79,13 +85,15 @@ function requireApprovedMedia(filePath, kind) {
   return current;
 }
 
-function findEdge() {
-  const candidates = [
-    path.join(process.env['PROGRAMFILES(X86)'] || '', 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
-    path.join(process.env.PROGRAMFILES || '', 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
-    path.join(process.env.LOCALAPPDATA || '', 'Microsoft', 'Edge', 'Application', 'msedge.exe')
-  ];
-  return candidates.find(candidate => candidate && fs.existsSync(candidate));
+function browserInfo() {
+  const available=availableBrowsers();
+  return { current:activeBrowser || chooseBrowser(available,settings?.get('browserId')), available:available.map(({id,name})=>({id,name})) };
+}
+function configureBrowser(id) {
+  activeBrowser=chooseBrowser(availableBrowsers(),id);
+  edgeProfilePath=path.join(app.getPath('userData'),profileName(activeBrowser.id));
+  if(activeBrowser.id==='builtin')embeddedBrowser=createEmbeddedBrowser({BrowserWindow,session,profilePath:edgeProfilePath,platformForUrl,
+    onLoadError:(id,error)=>{logger?.error('browser.load_failed',{id,message:error.message});updateState(id,{status:'平台页面加载失败，请检查网络后重新打开',readyToPublish:false});}});
 }
 
 function readDevToolsPort() {
@@ -107,10 +115,11 @@ async function waitForEdgePort() {
     }
     await new Promise(resolve => setTimeout(resolve, 250));
   }
-  throw new Error('Edge 本机调试通道启动超时');
+  throw new Error('浏览器启动超时，请重试或选择内置浏览器');
 }
 
 async function listTargets() {
+  if(activeBrowser?.id==='builtin')return embeddedBrowser.targets();
   edgePort = readDevToolsPort();
   if (!edgePort) return [];
   try {
@@ -124,8 +133,8 @@ function platformForUrl(url) {
 }
 
 function launchEdge(urls, newWindow = false) {
-  const edge = findEdge();
-  if (!edge) throw new Error('未找到 Microsoft Edge');
+  const edge = activeBrowser?.executable;
+  if (!edge) throw new Error('浏览器不可用，请切换到内置浏览器');
   const args = [
     '--remote-debugging-port=0',
     '--remote-debugging-address=127.0.0.1',
@@ -142,6 +151,7 @@ function launchEdge(urls, newWindow = false) {
 }
 
 async function ensureEdge(urls, newWindow = false) {
+  if(activeBrowser?.id==='builtin'){embeddedBrowser.open(urls);return;}
   const targets = await listTargets();
   if (!targets.length) {
     edgePort = null;
@@ -163,7 +173,7 @@ async function openPlatform(id) {
     await client.call('Page.bringToFront'); return true;
   }
   await ensureEdge([PLATFORMS[id].url], !targets.some(t => t.type === 'page'));
-  updateState(id, { status: '正在 Edge 标签页中打开' });
+  updateState(id, { status: '正在浏览器 标签页中打开' });
   return true;
 }
 
@@ -180,7 +190,7 @@ async function openAllPlatformsOnce() {
     const first = targets.find(t => t.type === 'page' && platformForUrl(t.url));
     if (first) { const id = platformForUrl(first.url); const client = await getClient(id, first); await client.call('Page.bringToFront'); }
   }
-  for (const id of Object.keys(PLATFORMS)) updateState(id, { status: '正在 Edge 中连接真实投稿页' });
+  for (const id of Object.keys(PLATFORMS)) updateState(id, { status: '正在浏览器 中连接真实投稿页' });
   return true;
 }
 
@@ -219,9 +229,10 @@ async function connectClient(id, target) {
   const cached = cdpClients.get(id);
   cdpClients.delete(id);
   cached?.client.close();
-  const client = new CDPClient(target.webSocketDebuggerUrl, networkEventHandler(id), () => {
-    if (cdpClients.get(id)?.client === client) { cdpClients.delete(id); updateState(id, disconnectState('Edge 标签页已关闭')); }
-  });
+  const onClose = () => {
+    if (cdpClients.get(id)?.client === client) { cdpClients.delete(id); updateState(id, disconnectState('平台窗口已关闭')); }
+  };
+  const client = activeBrowser?.id==='builtin' ? embeddedBrowser.client(target,networkEventHandler(id),onClose) : new CDPClient(target.webSocketDebuggerUrl,networkEventHandler(id),onClose);
   try {
   await client.ready;
   await client.call('Network.enable'); await client.call('Page.enable'); await client.call('DOM.enable'); await client.call('Runtime.enable');
@@ -245,7 +256,7 @@ function inspectPlatform(id, targets) {
 }
 async function inspectPlatformOnce(id, targets) {
   const target=selectTarget(targets,id,platformForUrl);
-  if(!target){dropClient(id);updateState(id,disconnectState('未找到专用 Edge 标签页，请点击在 Edge 打开'));return false;}
+  if(!target){dropClient(id);updateState(id,disconnectState('未找到专用浏览器 标签页，请点击在浏览器 打开'));return false;}
   try {
     const client=await getClient(id,target);
     const result=await client.call('Runtime.evaluate',{expression:buildInspectExpression(id),returnByValue:true,timeout:5000},{timeoutMs:6500});
@@ -272,7 +283,7 @@ async function inspectPlatformOnce(id, targets) {
   }
 }
 async function inspectTargets() {
-  if(inspecting||quitting)return;inspecting=true;
+  if(inspecting||quitting||switchingBrowser)return;inspecting=true;
   try{const targets=await listTargets();await Promise.all(Object.keys(PLATFORMS).filter(id=>!operations.has(id)).map(id=>inspectPlatform(id,targets)));}
   finally{inspecting=false;}
 }
@@ -285,7 +296,7 @@ async function assertCreatorPage(id, client) {
 }
 
 async function attachFileByCDP(id, filePath, kind) {
-  const entry = cdpClients.get(id); if (!entry) throw new Error('请先在 Edge 中打开平台投稿页');
+  const entry = cdpClients.get(id); if (!entry) throw new Error('请先在浏览器 中打开平台投稿页');
   const client = entry.client;
   await assertCreatorPage(id, client);
   if (id === 'bilibili' && kind === 'video') {
@@ -415,7 +426,7 @@ function createController() {
   controllerWindow.webContents.on('will-attach-webview', event => event.preventDefault());
   controllerWindow.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
   controllerWindow.on('close', () => { if (!controllerWindow.isMinimized() && !controllerWindow.isMaximized()) settings?.set('windowBounds', controllerWindow.getBounds()); });
-  controllerWindow.on('closed', () => { controllerWindow = null; });
+  controllerWindow.on('closed', () => { controllerWindow = null; if(!quitting)app.quit(); });
 }
 
 handle('platform:list', () => ({ configs: PLATFORMS, states: Object.fromEntries(platformState) }));
@@ -485,7 +496,7 @@ handle('media:attach',async(_e,{id,filePath,kind}={})=>{
     const response=await client.call('Runtime.evaluate',{expression:buildInspectExpression(id),returnByValue:true,timeout:5000});
     const current=response.result?.value;
     if(!current||response.exceptionDetails)throw new Error('暂时无法读取当前素材状态，请重新连接后继续；已选视频保留');
-    if(current.loginRequired)throw new Error('请在专用 Edge 的该平台页完成登录');
+    if(current.loginRequired)throw new Error('请在专用浏览器 的该平台页完成登录');
     const previous=submittedVideos.get(id);
     const decision=uploadDecision(previous,file,target.id,current);
     if(decision==='reused')return {ok:true,status:'reused',verified:true};
@@ -531,7 +542,7 @@ handle('platform:fill', async (_e, { id, payload } = {}) => {
     if (!choice.id || options.filter(option => option.name === choice.name).length !== 1 || !options.some(option => String(option.id) === choice.id && option.name === choice.name)) return { ok: false, error: `${field} 候选已失效、重名或缺少真实 ID，请重新读取或到平台页选择` };
   }
   const entry = cdpClients.get(id);
-  if (!entry) return { ok: false, error: 'Edge 平台标签页未连接' };
+  if (!entry) return { ok: false, error: '浏览器平台标签页未连接' };
   const expression = `(() => {
     const payload=${JSON.stringify(payload)};
     const clean=v=>String(v||'').replace(/\\s+/g,' ').trim();
@@ -559,7 +570,7 @@ handle('platform:fill', async (_e, { id, payload } = {}) => {
   try {
     await assertCreatorPage(id, entry.client);
     const response = await entry.client.call('Runtime.evaluate', { expression: adapterExpression, returnByValue: true, awaitPromise: true });
-    const result = response.result?.value || { ok: false, error: 'Edge 未返回填写结果' };
+    const result = response.result?.value || { ok: false, error: '平台未返回填写结果' };
     if (usesRichEditor) {
       const richResults = await fillRichTextFieldsByCDP(id, payload);
       result.results = [...(result.results || []).filter(item => !['description', 'tags'].includes(item.field)), ...richResults];
@@ -573,7 +584,7 @@ handle('platform:fill', async (_e, { id, payload } = {}) => {
   }
 });
 handle('platform:publish', async (_e,id)=>{
-  const entry=cdpClients.get(id);if(!entry)return{ok:false,error:'Edge 平台标签页未连接'};
+  const entry=cdpClients.get(id);if(!entry)return{ok:false,error:'浏览器平台标签页未连接'};
   await assertCreatorPage(id, entry.client);
   const inspect = async () => {
     const response = await entry.client.call('Runtime.evaluate', { expression: buildInspectExpression(id), returnByValue: true });
@@ -581,13 +592,13 @@ handle('platform:publish', async (_e,id)=>{
   };
   const before = await inspect();
   if (!before?.readyToPublish || platformState.get(id)?.networkInFlight > 0) return { ok: false, error: '平台仍在上传、处理或必填项未完成，拒绝发布' };
-  const confirmation = await dialog.showMessageBox(controllerWindow, { type: 'warning', title: `最终发布到${PLATFORMS[id].name}`, message: `即将点击${PLATFORMS[id].name}真实投稿页的最终发布按钮`, detail: '请确认你已经在 Edge 中逐项核对视频、封面、标题、话题、分区、合集和定时设置。此操作会对外发布内容。', buttons: ['取消', '确认发布'], defaultId: 0, cancelId: 0, noLink: true });
+  const confirmation = await dialog.showMessageBox(controllerWindow, { type: 'warning', title: `最终发布到${PLATFORMS[id].name}`, message: `即将点击${PLATFORMS[id].name}真实投稿页的最终发布按钮`, detail: '请确认你已经在浏览器 中逐项核对视频、封面、标题、话题、分区、合集和定时设置。此操作会对外发布内容。', buttons: ['取消', '确认发布'], defaultId: 0, cancelId: 0, noLink: true });
   if (confirmation.response !== 1) return { ok: false, canceled: true, error: '用户取消发布' };
   await assertCreatorPage(id, entry.client);
   const after = await inspect();
   if (!after?.readyToPublish || before.fingerprint !== after.fingerprint || cdpClients.get(id) !== entry || platformState.get(id)?.networkInFlight > 0) return { ok: false, error: '确认期间平台页面或内容已变化，请重新复核' };
   const expression = buildPublishExpression(id, after.fingerprint);
-  const r=await entry.client.call('Runtime.evaluate',{expression,returnByValue:true});const result=r.result?.value||{ok:false,error:'Edge 未返回执行结果'};logger?.info('publish.requested',{id,ok:result.ok});return result;
+  const r=await entry.client.call('Runtime.evaluate',{expression,returnByValue:true});const result=r.result?.value||{ok:false,error:'平台未返回执行结果'};logger?.info('publish.requested',{id,ok:result.ok});return result;
 });
 
 app.whenReady().then(()=>{
@@ -596,7 +607,7 @@ app.whenReady().then(()=>{
   logger=createLogger(app);settings=createSettings(app,logger);
   for(const id of Object.keys(PLATFORMS)){const record=settings.get('submittedVideos')?.[id];if(record)submittedVideos.set(id,record);}
   logger.info('app.ready',{version:app.getVersion(),platform:process.platform,arch:process.arch});
-  edgeProfilePath=path.join(app.getPath('userData'),'edge-creator-profile');
+  configureBrowser(settings.get('browserId'));
   createController(); monitorTimer=setInterval(inspectTargets,2500); inspectTargets();
   if (process.argv.includes('--open-platforms')) openAllPlatforms().catch(error => logger.error('edge.open_all_failed', { message: error.message }));
   app.on('activate',()=>{if(BrowserWindow.getAllWindows().length===0)createController()});
@@ -605,6 +616,7 @@ process.on('uncaughtException', error => logger?.error('process.uncaught_excepti
 process.on('unhandledRejection', reason => logger?.error('process.unhandled_rejection', { message: reason?.message || String(reason) }));
 async function closeDedicatedEdge() {
   clearInterval(monitorTimer);
+  if(activeBrowser?.id==='builtin'){for(const entry of cdpClients.values())entry.client.close();cdpClients.clear();await embeddedBrowser.closeAll();return;}
   try {
     if (!edgePort) edgePort = readDevToolsPort();
     if (edgePort) {
@@ -627,14 +639,15 @@ async function resetEdgeProfile() {
   if (!profile.startsWith(`${base}${path.sep}`)) throw new Error('拒绝清理非应用数据目录');
   const choice = await dialog.showMessageBox(controllerWindow, {
     type: 'warning', title: '清除三个平台登录状态',
-    message: '这会退出发布器专用 Edge 中的抖音、bilibili 和视频号账号。',
-    detail: '不会删除视频文件，也不会影响日常使用的 Edge 浏览器。清除后需要重新扫码登录。',
+    message: '这会退出发布器专用浏览器 中的抖音、bilibili 和视频号账号。',
+    detail: '只清除当前发布浏览器的专用登录状态，不影响日常浏览器或其他发布浏览器。清除后需要重新扫码登录。',
     buttons: ['取消', '确认清除'], defaultId: 0, cancelId: 0, noLink: true
   });
   if (choice.response !== 1) return { ok: false, canceled: true };
   await closeDedicatedEdge();
   let cleared = false;
-  for (let attempt = 0; attempt < 10; attempt += 1) {
+  if(activeBrowser?.id==='builtin'){await embeddedBrowser.clearData();cleared=true;}
+  for (let attempt = 0; !cleared && attempt < 10; attempt += 1) {
     try { fs.rmSync(profile, { recursive: true, force: true }); cleared = true; break; }
     catch { await new Promise(resolve => setTimeout(resolve, 300)); }
   }
@@ -646,7 +659,27 @@ async function resetEdgeProfile() {
   return { ok: true };
 }
 
-handle('app:runtime-info', () => ({ version: app.getVersion(), platform: process.platform, arch: process.arch, edgeFound: !!findEdge(), logDirectory: logger?.directory }));
+handle('app:runtime-info', () => ({ version: app.getVersion(), platform: process.platform, arch: process.arch, browser:browserInfo(), logDirectory: logger?.directory }));
+handle('app:select-browser',async(_e,id)=>{
+  if(!availableBrowsers().some(browser=>browser.id===id))return {ok:false,error:'该浏览器不可用'};
+  if(operations.size)return {ok:false,error:'请等待当前平台操作结束再切换浏览器'};
+  if(id===activeBrowser.id)return {ok:true,browser:browserInfo()};
+  switchingBrowser=true;
+  try {
+  if((await listTargets()).length){
+    const answer=await dialog.showMessageBox(controllerWindow,{type:'question',title:'切换发布浏览器',message:'切换会关闭当前专用平台窗口，请先保存平台草稿。',detail:'各浏览器的专用登录状态分别保留。首次使用另一浏览器需要重新登录。',buttons:['取消','已保存，切换'],defaultId:0,cancelId:0,noLink:true});
+    if(answer.response!==1)return {ok:false,canceled:true,browser:browserInfo()};
+  }
+  clearInterval(monitorTimer);
+  await Promise.allSettled([...inspectingPlatforms.values()]);
+  await closeDedicatedEdge();edgePort=null;
+  configureBrowser(id);settings.set('browserId',id);
+  submittedVideos.clear();persistSubmissions();
+  for(const platform of Object.keys(PLATFORMS))updateState(platform,disconnectState('已切换浏览器，请打开平台并登录'));
+  monitorTimer=setInterval(inspectTargets,2500);
+  return {ok:true,browser:browserInfo()};
+  } finally {switchingBrowser=false;}
+});
 handle('app:show-logs', () => logger?.file ? shell.showItemInFolder(logger.file) : false);
 handle('app:reset-logins', () => resetEdgeProfile());
 handle('app:export-diagnostics', async () => {

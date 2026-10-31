@@ -11,7 +11,7 @@
     "asset": "Blockcast-Studio-Setup-0.4.1.exe",
     "sizeBytes": 104150659,
     "sha256": "8452DFE5C8257A514A3939050CE60984119FA3C52DCF5192B4F37EA25392C4DC",
-    "published": false,
+    "published": true,
     "signed": false,
     "verifiedAt": "2026-10-31"
   }

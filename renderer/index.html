@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"><title>方块发布站</title><link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="metadata.css"><link rel="stylesheet" href="footer.css"><link rel="stylesheet" href="cover-adapter.css"></head>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"><title>方块发布站</title><link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="metadata.css"><link rel="stylesheet" href="footer.css"></head>
 <body>
   <header class="topbar">
     <div class="logo"><i>◆</i><div><b>方块发布站</b><small>REAL SESSION DESKTOP</small></div></div>
@@ -35,27 +35,14 @@
           <article data-override="bilibili"><b>bilibili 独立设置</b><button class="probe-options" data-probe="bilibili">读取账号真实候选</button><input data-field="title" placeholder="平台标题（留空则用通用标题）"><textarea data-field="description" rows="2" placeholder="平台简介（留空则用通用简介）"></textarea><input data-field="tags" placeholder="平台标签，用逗号分隔"><select data-field="visibility"><option value="">保持当前可见性</option></select><select data-field="partition"><option value="">请选择真实分区</option></select><select data-field="collection"><option value="">保持当前合集</option></select><input data-field="schedule" type="datetime-local"></article>
           <article data-override="wechat"><b>视频号独立设置</b><button class="probe-options" data-probe="wechat">读取账号真实候选</button><input data-field="title" placeholder="平台短标题（留空则用通用标题）"><textarea data-field="description" rows="2" placeholder="平台描述（留空则用通用简介）"></textarea><input data-field="tags" placeholder="平台话题，用逗号分隔"><select data-field="visibility"><option value="">保持当前可见性</option></select><select data-field="partition"><option value="">此平台无必选分区</option></select><select data-field="collection"><option value="">保持当前合集</option></select><input data-field="schedule" type="datetime-local"></article>
         </div>
-        <div class="metadata-action"><span>分类和合集按当前账号真实候选填写。定时设置、封面裁剪及平台不支持自动确认的项目，请在真实投稿页完成；最终发布前逐项复核。</span></div>
+        <div class="metadata-action"><span>分类和合集按当前账号真实候选填写。定时设置、封面上传及平台不支持自动确认的项目，请在真实投稿页完成；最终发布前逐项复核。</span></div>
       </div>
 
       <div class="section-head second"><div><em>03</em><h2>真实素材通道</h2></div><span>文件直接交给各平台页面，不经过中间服务器</span></div>
       <div class="media-grid">
         <button class="media-box" data-kind="video"><i>▶</i><div><b>选择主视频</b><span id="videoName">尚未选择</span></div><em>本地文件</em></button>
-        <button class="media-box" data-kind="cover"><i>▧</i><div><b>选择视频封面</b><span id="coverName">尚未选择</span></div><em>本地文件</em></button>
       </div>
-      <section class="cover-adapter" id="bilibiliCoverPanel" hidden>
-        <div class="cover-preview"><img id="bilibiliCoverPreview" alt="B 站 4:3 封面预览"></div>
-        <div class="cover-adapter-copy">
-          <small>BILIBILI · 4:3</small>
-          <b>B 站专用封面</b>
-          <p id="bilibiliCoverStatus">正在检查封面比例……</p>
-          <div class="cover-adapter-actions">
-            <button id="confirmBilibiliCover" disabled>确认使用此 B 站封面</button>
-            <button id="selectBilibiliCover" class="secondary">选择已有横版封面</button>
-          </div>
-          <em>确认前不会上传；处理失败时仍可到 B 站页面手动设置。</em>
-        </div>
-      </section>
+      <p class="manual-cover-note">封面需要发布者在各平台真实投稿页手动上传，并确认裁剪与保存。</p>
       <div class="attach-bar"><div id="mediaHint">选择视频并填写信息，然后一次生成三个平台的待复核草稿。</div><button id="prepareAll" disabled>一键准备三个平台草稿</button></div>
 
       <div class="section-head second"><div><em>04</em><h2>准备状态</h2></div><span>仅展示真实上传、转码与字段结果</span></div>

@@ -22,7 +22,7 @@ test('unpublished release never exposes a false download link', () => {
 test('published release links to only the configured GitHub release', () => {
   const c = clone(); c.repositoryPublished = true; c.release.published = true;
   const html = render(c);
-  assert(html.includes('https://github.com/jonzhao819-del/blockcast-studio/releases/download/v0.4.0/Blockcast-Studio-Setup-0.4.0.exe'));
+  assert(html.includes('https://github.com/jonzhao819-del/blockcast-studio/releases/download/'+c.release.tag+'/'+c.release.asset));
   assert(html.includes('https://github.com/jonzhao819-del/blockcast-studio/issues'));
 });
 test('invalid email, repository, release integrity and inconsistent publication fail closed', () => {
@@ -41,7 +41,7 @@ test('page is public and local assets do not request third-party scripts', () =>
   assert(html.includes("connect-src 'none'"));assert(html.includes('网站无需登录'));
 });
 test('manual review and unverified features remain disclosed', () => {
-  const html=render(config);for(const value of ['未做 Authenticode 签名','B站真实封面专项尚未完成','未执行真实发布','第二台干净电脑仍待测试','分片字节只表示当前请求'])assert(html.includes(value));
+  const html=render(config);for(const value of ['未做 Authenticode 签名','封面需要发布者在各平台手动上传','未执行真实发布','修复版仍待该电脑复测','分片字节只表示当前请求'])assert(html.includes(value));
 });
 test('CSS supports reduced motion, focus and mobile layouts', () => {
   const css=fs.readFileSync(path.join(__dirname,'../website/styles.css'),'utf8');

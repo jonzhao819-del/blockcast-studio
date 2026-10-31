@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, crashReporter, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, crashReporter } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -9,7 +9,8 @@ const { assertPlatform, validateMedia, validatePayload, summarizeResults, truste
 const { createLogger } = require('./lib/logger');
 const { createSettings } = require('./lib/settings');
 const { buildInspectExpression, buildProbeExpression, buildFillExpression, buildPublishExpression } = require('./lib/platform-adapters');
-const { prepareBilibiliCover } = require('./lib/cover-adapter');
+const { randomUUID } = require('crypto');
+const { uploadDecision, sameMedia } = require('./lib/upload-recovery');
 
 let edgePort = null;
 const PLATFORMS = {
@@ -69,6 +70,7 @@ function handle(channel, handler) {
 function approveMedia(filePath, kind) {
   const file = validateMedia(filePath, kind);
   approvedMedia.set(file.path, file);
+  settings?.set('selectedVideo', file);
   return file;
 }
 function requireApprovedMedia(filePath, kind) {
@@ -128,7 +130,8 @@ function launchEdge(urls, newWindow = false) {
     '--remote-debugging-port=0',
     '--remote-debugging-address=127.0.0.1',
     `--user-data-dir=${edgeProfilePath}`,
-    '--no-first-run', '--no-default-browser-check'
+    '--no-first-run', '--no-default-browser-check',
+    '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows'
   ];
   if (newWindow) args.push('--new-window');
   args.push(...urls);
@@ -205,7 +208,7 @@ const UPLOAD_HOOK_SOURCE = `(() => {
 })()`;
 
 async function getClient(id, target) {
-  if (connecting.has(id)) await connecting.get(id);
+  if (connecting.has(id)) await connecting.get(id).catch(() => {});
   const cached = cdpClients.get(id);
   if (cached?.targetId === target.id) return cached.client;
   const connection = connectClient(id, target);
@@ -224,66 +227,56 @@ async function connectClient(id, target) {
   await client.call('Network.enable'); await client.call('Page.enable'); await client.call('DOM.enable'); await client.call('Runtime.enable');
   await client.call('Runtime.addBinding', { name: '__blockcastUploadProgress' });
   await client.call('Page.addScriptToEvaluateOnNewDocument', { source: UPLOAD_HOOK_SOURCE });
-  await client.call('Runtime.evaluate', { expression: UPLOAD_HOOK_SOURCE }).catch(() => {});
+  // Polling must not depend on executing script in a loading/background tab.
+  client.call('Runtime.evaluate', { expression: UPLOAD_HOOK_SOURCE }, { timeoutMs: 5000 }).catch(() => {});
   cdpClients.set(id, { targetId: target.id, client });
   return client;
   } catch (error) { client.close(); throw error; }
 }
 
-const INSPECT_EXPRESSION = `(() => {
-  const clean=v=>String(v||'').replace(/\\s+/g,' ').trim().slice(0,160);
-  const visible=e=>!!(e&&(e.offsetWidth||e.offsetHeight||e.getClientRects().length));
-  const roots=[document];for(let i=0;i<roots.length&&i<20;i++){for(const e of roots[i].querySelectorAll('*')){if(e.shadowRoot&&!roots.includes(e.shadowRoot))roots.push(e.shadowRoot);if(e.tagName==='IFRAME'){try{if(e.contentDocument&&!roots.includes(e.contentDocument))roots.push(e.contentDocument)}catch{}}}}
-  const all=selector=>[...new Set(roots.flatMap(root=>[...root.querySelectorAll(selector)]))];
-  const label=e=>clean(e.getAttribute('aria-label')||e.getAttribute('placeholder')||e.getAttribute('name')||e.closest('label,[class*=form],[class*=item],[class*=field]')?.textContent).slice(0,80);
-  const body=clean(document.body?.innerText).slice(0,5000);
-  const loginRequired=/扫码登录|登录后|手机号登录|验证码登录|请登录|微信扫码/.test(body);
-  const ptexts=all('[role=progressbar],progress,[class*=progress],[class*=upload]').filter(visible).map(e=>clean(e.getAttribute('aria-valuenow')||e.textContent));
-  const pm=ptexts.join(' ').match(/(100|\\d{1,2})(?:\\.\\d+)?%/); const progress=pm?Number(pm[1]):null;
-  let uploadStage='idle'; if(/上传中|正在上传|上传进度/.test(body))uploadStage='uploading'; else if(/转码中|处理中|合成中|审核素材/.test(body))uploadStage='processing'; else if(/上传成功|上传完成/.test(body))uploadStage='uploaded'; else if(/上传失败|重新上传/.test(body))uploadStage='failed';
-  const fields={}; all('input:not([type=password]),textarea,select,[contenteditable=true]').filter(visible).slice(0,80).forEach((e,i)=>{const l=label(e);if(l)fields['field_'+i]={label:l,type:e.tagName.toLowerCase(),valuePresent:!!clean(e.value||e.textContent)}});
-  const options={}; all('select').filter(visible).slice(0,20).forEach((s,i)=>{options['select_'+i]={label:label(s),values:[...s.options].slice(0,100).map(o=>({id:o.value,name:clean(o.textContent)})).filter(x=>x.name)}});
-  const pop=all('[role=option],[class*=option],[class*=dropdown] li').filter(visible).slice(0,100).map(e=>({id:e.getAttribute('data-value')||e.getAttribute('value')||'',name:clean(e.textContent)})).filter(x=>x.name); if(pop.length)options.visibleCandidates={label:'当前展开候选项',values:pop};
-  const pubs=all('button,[role=button]').filter(visible).map(e=>clean(e.textContent)).filter(t=>/^(发布|立即发布|发表|投稿|立即投稿)$/.test(t));
-  const readyToPublish=pubs.length===1&&!loginRequired&&!['uploading','processing'].includes(uploadStage);
-  const status=loginRequired?'等待你在 Edge 扫码登录':uploadStage==='uploading'?'Edge 正在真实上传':uploadStage==='processing'?'平台正在处理/转码':readyToPublish?'Edge 真实投稿页待最终确认':'Edge 页面已连接，等待操作';
-  return {url:location.href,loginRequired,progress,uploadStage,status,fields,options,readyToPublish};
-})()`;
-
-async function inspectTargets() {
-  if (inspecting || quitting) return;
-  inspecting = true;
-  try {
-  const targets = await listTargets();
-  for (const id of Object.keys(PLATFORMS)) {
-    const target = selectTarget(targets, id, platformForUrl);
-    if (!target) { if (platformState.get(id).connected) updateState(id, disconnectState('未在 Edge 中找到该平台标签页')); continue; }
-    try {
-      const client = await getClient(id, target);
-      const result = await client.call('Runtime.evaluate', { expression: buildInspectExpression(id), returnByValue: true, awaitPromise: true });
-      const snapshot = result.result?.value;
-      if (!snapshot || result.exceptionDetails) throw new Error('读取投稿状态失败');
-      delete snapshot.fingerprint;
-      const submitted = submittedVideos.get(id);
-      if (submitted && snapshot.formReady && snapshot.hasVideo && snapshot.videoIdentity && !submitted.videoIdentity) submitted.videoIdentity = snapshot.videoIdentity;
-      delete snapshot.videoIdentity;
-      if (snapshot.loginRequired || platformState.get(id).pathname !== snapshot.pathname) updateState(id, { options: {}, readyToPublish: false });
-      snapshot.options = { ...(platformState.get(id).options || {}), ...(snapshot.options || {}) };
-      const current = platformState.get(id);
-      if ((current.networkInFlight || 0) > 0) {
-        snapshot.uploadStage = current.uploadStage;
-        snapshot.status = current.status;
-        snapshot.readyToPublish = false;
-        snapshot.bytesSent = current.bytesSent;
-        snapshot.bytesTotal = current.bytesTotal;
-        snapshot.progressSource = current.progressSource;
-        snapshot.networkInFlight = current.networkInFlight;
-      }
-      updateState(id, { connected: true, ...snapshot, url: target.url });
-    } catch (error) { updateState(id, disconnectState(`Edge 连接失败：${error.message}`)); }
-  }
-  } finally { inspecting = false; }
+function dropClient(id) {
+  const entry=cdpClients.get(id);cdpClients.delete(id);entry?.client.close();
 }
+const inspectingPlatforms=new Map();
+function inspectPlatform(id, targets) {
+  if(inspectingPlatforms.has(id))return inspectingPlatforms.get(id);
+  const pending=inspectPlatformOnce(id,targets).finally(()=>inspectingPlatforms.delete(id));
+  inspectingPlatforms.set(id,pending);return pending;
+}
+async function inspectPlatformOnce(id, targets) {
+  const target=selectTarget(targets,id,platformForUrl);
+  if(!target){dropClient(id);updateState(id,disconnectState('未找到专用 Edge 标签页，请点击在 Edge 打开'));return false;}
+  try {
+    const client=await getClient(id,target);
+    const result=await client.call('Runtime.evaluate',{expression:buildInspectExpression(id),returnByValue:true,timeout:5000},{timeoutMs:6500});
+    const snapshot=result.result?.value;
+    if(!snapshot||result.exceptionDetails)throw new Error('页面正在加载或暂时无法读取');
+    delete snapshot.fingerprint;
+    const submitted=submittedVideos.get(id);
+    if(submitted && snapshot.uploadToken===submitted.token && snapshot.videoIdentity && !submitted.videoIdentity){
+      submitted.videoIdentity=snapshot.videoIdentity;persistSubmissions();
+    }
+    delete snapshot.videoIdentity;delete snapshot.uploadToken;
+    if(snapshot.loginRequired||platformState.get(id).pathname!==snapshot.pathname)updateState(id,{options:{},readyToPublish:false});
+    snapshot.options={...(platformState.get(id).options||{}),...(snapshot.options||{})};
+    const current=platformState.get(id);
+    if((current.networkInFlight||0)>0){
+      Object.assign(snapshot,{uploadStage:current.uploadStage,status:current.status,readyToPublish:false,bytesSent:current.bytesSent,bytesTotal:current.bytesTotal,progressSource:current.progressSource,networkInFlight:current.networkInFlight});
+    }
+    updateState(id,{connected:true,...snapshot,url:target.url});return true;
+  }catch(error){
+    logger?.error('platform.inspect_failed',{id,message:error.message});
+    dropClient(id);
+    updateState(id,disconnectState('页面读取暂时超时或中断；登录状态未清除。可切换到该平台后重新连接'));
+    return false;
+  }
+}
+async function inspectTargets() {
+  if(inspecting||quitting)return;inspecting=true;
+  try{const targets=await listTargets();await Promise.all(Object.keys(PLATFORMS).filter(id=>!operations.has(id)).map(id=>inspectPlatform(id,targets)));}
+  finally{inspecting=false;}
+}
+function persistSubmissions(){settings?.set('submittedVideos',Object.fromEntries(submittedVideos));}
 
 async function assertCreatorPage(id, client) {
   const result = await client.call('Runtime.evaluate', { expression: 'location.href', returnByValue: true });
@@ -304,17 +297,12 @@ async function attachFileByCDP(id, filePath, kind) {
     for (const type of ['dragEnter', 'dragOver', 'drop']) await client.call('Input.dispatchDragEvent', { type, x: point.x, y: point.y, data });
     return true;
   }
-  if (id === 'bilibili' && kind === 'cover') {
-    await client.call('Runtime.evaluate', { expression: `(()=>{const visible=e=>!!(e&&(e.offsetWidth||e.offsetHeight||e.getClientRects().length));const nodes=[...document.querySelectorAll('button,div,span')].filter(e=>visible(e)&&(e.innerText||e.textContent||'').trim()==='封面设置').sort((a,b)=>a.childElementCount-b.childElementCount);if(nodes[0]){nodes[0].click();return true}return false})()`, returnByValue: true });
-    await new Promise(resolve => setTimeout(resolve, 350));
-  }
   const { nodes } = await client.call('DOM.getFlattenedDocument', { depth: -1, pierce: true });
   const candidates = nodes.filter(node => node.nodeName === 'INPUT').map(node => {
     const attrs = Object.fromEntries(Array.from({ length: Math.floor((node.attributes || []).length / 2) }, (_, index) => [node.attributes[index * 2], node.attributes[index * 2 + 1]]));
     if (attrs.type !== 'file') return null;
     const accept = String(attrs.accept || '').toLowerCase(); let score = 0;
-    if (kind === 'cover') { if (/image|jpg|jpeg|png|webp/.test(accept)) score += 10; if (/video|mp4|mov|mkv/.test(accept)) score -= 10; }
-    else { if (/video|mp4|mov|mkv|flv|avi/.test(accept)) score += 10; if (/image|jpg|jpeg|png|webp|txt/.test(accept)) score -= 10; }
+    { if (/video|mp4|mov|mkv|flv|avi/.test(accept)) score += 10; if (/image|jpg|jpeg|png|webp|txt/.test(accept)) score -= 10; }
     if (attrs.name) score += 1;
     return { node, score };
   }).filter(Boolean).sort((a, b) => b.score - a.score);
@@ -437,7 +425,13 @@ handle('platform:focus', async (_e, id) => {
   const targets = await listTargets(); const t = selectTarget(targets, id, platformForUrl);
   if (!t) return openPlatform(id); const client = await getClient(id, t); await client.call('Page.bringToFront'); return true;
 });
-handle('platform:reload', async (_e, id) => { const entry=cdpClients.get(id); if(!entry)return false; updateState(id, disconnectState('正在刷新平台页面')); await entry.client.call('Page.reload',{ignoreCache:false}); return true; });
+handle('platform:reload', async (_e,id)=>{
+  if(inspectingPlatforms.has(id))await inspectingPlatforms.get(id);
+  dropClient(id);
+  updateState(id,disconnectState('正在重新连接，保留平台草稿'));
+  const ok=await inspectPlatform(id,await listTargets());
+  return {ok,error:ok?undefined:platformState.get(id).status};
+});
 handle('platform:probe-options', async (_e, id) => {
   if (!PLATFORMS[id]) return { ok: false, error: '未知平台' };
   const entry = cdpClients.get(id);
@@ -457,68 +451,76 @@ handle('platform:probe-options', async (_e, id) => {
 });
 handle('platform:review-all', async () => { const targets=await listTargets(); const t=targets.find(x=>x.type==='page'&&platformForUrl(x.url)); if(t){const id=platformForUrl(t.url);const c=await getClient(id,t);await c.call('Page.bringToFront');} return true; });
 handle('media:select', async (_e, kind) => {
-  if (!['video', 'cover'].includes(kind)) throw new Error('无效素材类型');
-  const filters=kind==='cover'?[{name:'封面图片',extensions:['jpg','jpeg','png','webp']}]:[{name:'视频文件',extensions:['mp4','mov','mkv','webm']}];
+  if (kind !== 'video') throw new Error('无效素材类型');
+  const filters=[{name:'视频文件',extensions:['mp4','mov','mkv','webm']}];
   const result=await dialog.showOpenDialog(controllerWindow,{properties:['openFile'],filters}); if(result.canceled||!result.filePaths[0])return null;
   return approveMedia(result.filePaths[0], kind);
 });
 handle('media:from-path', (_e, { filePath, kind } = {}) => {
   try {
-    if (!['video', 'cover'].includes(kind) || typeof filePath !== 'string' || !path.isAbsolute(filePath)) return null;
-    const allowed = kind === 'cover' ? /\.(jpe?g|png|webp)$/i : /\.(mp4|mov|mkv|webm)$/i;
+    if (kind !== 'video' || typeof filePath !== 'string' || !path.isAbsolute(filePath)) return null;
+    const allowed = /\.(mp4|mov|mkv|webm)$/i;
     if (!allowed.test(filePath)) return null;
     return approveMedia(filePath, kind);
   } catch { return null; }
 });
-handle('media:prepare-bilibili-cover', async (_e, { filePath } = {}) => {
-  try {
-    if (typeof filePath !== 'string' || !path.isAbsolute(filePath) || !/\.(jpe?g|png|webp)$/i.test(filePath)) {
-      return { ok: false, error: '无效的封面文件路径' };
-    }
-    const result = prepareBilibiliCover({
-      sourcePath: requireApprovedMedia(filePath, 'cover').path,
-      outputDirectory: path.join(app.getPath('userData'), 'derived-covers'),
-      nativeImage
-    });
-    approveMedia(result.path, 'cover');
-    logger?.info('media.bilibili_cover_prepared', {
-      generated: result.generated,
-      sourceWidth: result.sourceWidth,
-      sourceHeight: result.sourceHeight,
-      width: result.width,
-      height: result.height
-    });
-    return result;
-  } catch (error) {
-    logger?.error('media.bilibili_cover_failed', { message: error.message });
-    return { ok: false, error: error.message };
-  }
+handle('media:restore',()=>{
+  const saved=settings?.get('selectedVideo');if(!saved)return {file:null};
+  try{
+    const current=validateMedia(saved.path,'video');
+    if(!sameMedia(saved,current))throw new Error('已保存的视频发生变化');
+    approvedMedia.set(current.path,current);return {file:current};
+  }catch{return {file:null,error:'上次视频已移动、删除或修改，请重新选择主视频；填写的信息已保留'};}
 });
-handle('media:attach', async (_e, { id, filePath, kind } = {}) => {
-  try {
-    const file = requireApprovedMedia(filePath, kind);
-    if (kind === 'video') {
-      const entry = cdpClients.get(id);
-      if (!entry) throw new Error('请先打开平台投稿页');
-      await assertCreatorPage(id, entry.client);
-      const response = await entry.client.call('Runtime.evaluate', { expression: buildInspectExpression(id), returnByValue: true });
-      const current = response.result?.value;
-      if (!current) throw new Error('无法读取当前素材状态，请重试');
-      if (current.formReady && current.hasVideo) {
-        const previous = submittedVideos.get(id);
-        if (previous?.path === file.path && previous.mtimeMs === file.mtimeMs && previous.size === file.size && previous.targetId === entry.targetId && previous.videoIdentity && previous.videoIdentity === current.videoIdentity) return { ok: true, status: 'reused', verified: true };
-        throw new Error('投稿页已有视频。为避免重复上传或覆盖，请先在平台新建投稿/更换视频，再准备');
-      }
+handle('media:attach',async(_e,{id,filePath,kind}={})=>{
+  let dispatched=false;
+  try{
+    if(kind!=='video')throw new Error('封面请在各平台投稿页手动上传');
+    const file=requireApprovedMedia(filePath,'video');
+    if(inspectingPlatforms.has(id))await inspectingPlatforms.get(id);
+    const target=selectTarget(await listTargets(),id,platformForUrl);
+    if(!target)throw new Error('请先打开平台投稿页');
+    const client=await getClient(id,target);
+    await assertCreatorPage(id,client);
+    const response=await client.call('Runtime.evaluate',{expression:buildInspectExpression(id),returnByValue:true,timeout:5000});
+    const current=response.result?.value;
+    if(!current||response.exceptionDetails)throw new Error('暂时无法读取当前素材状态，请重新连接后继续；已选视频保留');
+    if(current.loginRequired)throw new Error('请在专用 Edge 的该平台页完成登录');
+    const previous=submittedVideos.get(id);
+    const decision=uploadDecision(previous,file,target.id,current);
+    if(decision==='reused')return {ok:true,status:'reused',verified:true};
+    if(decision==='confirm-existing'){
+      const choice=await dialog.showMessageBox(controllerWindow,{type:'question',title:'继续平台已有视频',message:PLATFORMS[id].name+'投稿页已有视频或正在上传',detail:'无法自动确认是否为所选的 '+file.name+'。请在平台页核对。继续只填写当前视频，不会再次上传；若不是同一视频，请取消后在平台新建投稿。',buttons:['取消并检查','继续填写当前视频'],defaultId:0,cancelId:0,noLink:true});
+      if(choice.response!==1)return {ok:false,error:'已保留所选视频。请核对平台已有视频后继续'};
+      await assertCreatorPage(id,client);
+      const check=await client.call('Runtime.evaluate',{expression:buildInspectExpression(id),returnByValue:true});
+      const after=check.result?.value;
+      if(!after||check.exceptionDetails||after.fingerprint!==current.fingerprint||after.videoIdentity!==current.videoIdentity||after.uploadToken!==current.uploadToken||after.loginRequired)throw new Error('确认期间页面已变化，请重新检查');
+      const token=randomUUID();
+      await client.call('Runtime.evaluate',{expression:'window.__blockcastUploadToken='+JSON.stringify(token)});
+      submittedVideos.set(id,{...file,targetId:target.id,token,videoIdentity:current.videoIdentity});persistSubmissions();
+      return {ok:true,status:'reused',verified:true};
     }
-    if (kind === 'video') updateState(id, { uploadStage: 'uploading', status: '正在提交视频到真实上传控件', readyToPublish: false, progress: null, bytesSent: null, bytesTotal: null });
-    const ok = await attachFileByCDP(id, file.path, kind);
-    logger?.info('media.attach', { id, kind, ok });
-    if (!ok) throw new Error('当前页面未找到唯一可靠的素材控件，请到平台页检查');
-    if (kind === 'video') submittedVideos.set(id, { ...file, targetId: cdpClients.get(id)?.targetId });
-    return { ok: true, status: 'submitted', verified: false };
-  } catch (error) {
-    if (kind === 'video') updateState(id, { uploadStage: 'failed', readyToPublish: false, status: error.message });
-    return { ok: false, error: error.message };
+    if(decision==='confirm-retry'){
+      const choice=await dialog.showMessageBox(controllerWindow,{type:'question',title:'核对上次视频提交结果',message:'上次提交未能确认，平台目前未检测到视频',detail:'请先检查 '+PLATFORMS[id].name+' 页面。只有确认平台没有收到视频、且未在上传时，才重新提交。无需重新导入文件。',buttons:['取消并检查','确认无视频，重新提交'],defaultId:0,cancelId:0,noLink:true});
+      if(choice.response!==1)return {ok:false,error:'保留已选视频，等待核对上次提交结果'};
+      await assertCreatorPage(id,client);
+      const check=await client.call('Runtime.evaluate',{expression:buildInspectExpression(id),returnByValue:true});
+      const after=check.result?.value;
+      if(!after||check.exceptionDetails||after.hasVideo||['uploading','processing'].includes(after.uploadStage)||after.loginRequired)throw new Error('平台状态已变化，请重新核对后继续');
+    }
+    const token=randomUUID();
+    await client.call('Runtime.evaluate',{expression:'window.__blockcastUploadToken='+JSON.stringify(token)});
+    submittedVideos.set(id,{...file,targetId:target.id,token});persistSubmissions();
+    updateState(id,{uploadStage:'uploading',status:'正在提交视频到真实上传控件',readyToPublish:false,progress:null,bytesSent:null,bytesTotal:null});
+    dispatched=true;
+    const ok=await attachFileByCDP(id,file.path,'video');
+    if(!ok){submittedVideos.delete(id);persistSubmissions();throw new Error('未找到可靠的视频上传控件，请先在平台进入视频投稿页；已选视频已保留');}
+    logger?.info('media.attach',{id,kind,ok});
+    return {ok:true,status:'submitted',verified:false};
+  }catch(error){
+    updateState(id,{readyToPublish:false,status:error.message,...(dispatched?{uploadStage:'unknown'}:{})});
+    return {ok:false,error:error.message};
   }
 });
 handle('platform:fill', async (_e, { id, payload } = {}) => {
@@ -592,6 +594,7 @@ app.whenReady().then(()=>{
   if (!hasSingleInstanceLock) return;
   crashReporter.start({ uploadToServer: false, compress: false });
   logger=createLogger(app);settings=createSettings(app,logger);
+  for(const id of Object.keys(PLATFORMS)){const record=settings.get('submittedVideos')?.[id];if(record)submittedVideos.set(id,record);}
   logger.info('app.ready',{version:app.getVersion(),platform:process.platform,arch:process.arch});
   edgeProfilePath=path.join(app.getPath('userData'),'edge-creator-profile');
   createController(); monitorTimer=setInterval(inspectTargets,2500); inspectTargets();

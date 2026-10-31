@@ -3,14 +3,18 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { app, BrowserWindow, ipcMain } = require('electron');
 const { buildInspectExpression, buildFillExpression } = require('../lib/platform-adapters');
+app.setPath('userData',fs.mkdtempSync(path.join(require('node:os').tmpdir(),'blockcast-workflow-')));
 app.on('window-all-closed', () => {});
 const calls = [];
 const states = Object.fromEntries(['douyin','bilibili','wechat'].map(id => [id,{ id,connected:true,formReady:true,hasVideo:true,readyToPublish:true,uploadStage:'uploaded',progress:42.5,fields:{title:{valuePresent:true},description:{}},options:{collection:{values:[{id:'1',name:'同名合集'},{id:'2',name:'同名合集'}]}} }]));
 let rejectProbe = false;
+let storedVideo = null;
 ipcMain.handle('fixture:call', (_event, name, args) => {
   calls.push({name,args});
   if(name==='listPlatforms')return{states};
   if(name==='runtimeInfo')return{version:'fixture',arch:'x64',edgeFound:true};
+  if(name==='restoreMedia')return{file:storedVideo};
+  if(name==='attachMedia'){storedVideo={kind:'video',path:args[0].filePath,size:123,name:'fixture.mp4'};return {ok:true,status:'reused'};}
   if(name==='probeOptions'&&rejectProbe)throw new Error('fixture probe failure');
   if(name==='fillPlatform')return{ok:args[0].id!=='wechat',results:[{field:'title',ok:true},{field:'tags',ok:args[0].id!=='wechat',reason:'fixture missing topic'}]};
   if(name==='publish')return{ok:false,canceled:true,error:'用户取消发布'};
@@ -25,6 +29,9 @@ app.whenReady().then(async()=>{
   await wait(250);
   const run=expression=>window.webContents.executeJavaScript(expression);
   assert.equal(await run("document.querySelectorAll('.platform-card').length"),3);
+  assert.equal(await run("document.querySelectorAll('.media-box').length"),1);
+  assert.equal(await run("document.querySelector('[data-kind=cover]')"),null);
+  assert((await run("document.querySelector('.manual-cover-note').textContent")).includes('手动上传'));
   assert.equal(await run("document.querySelector('.track i').style.width"),'42.5%');
   assert.equal(await run("new Set([...document.querySelector('[data-override=douyin] [data-field=collection]').options].map(x=>x.value)).size"),3);
   await run("document.querySelector('#commonTitle').value='测试标题'; setMediaFile({kind:'video',path:'C:/fixture.mp4',size:123,name:'fixture.mp4'});document.querySelector('#prepareAll').click()");
@@ -40,6 +47,18 @@ app.whenReady().then(async()=>{
   await wait(100);
   assert.equal(calls.filter(x=>x.name==='publish').length,1,'Cancel on the first platform must stop the sequence');
   assert.equal(await run("document.querySelector('#consent').checked"),false);
+  await run("document.querySelector('#commonDescription').value='保留的简介';document.querySelector('#commonDescription').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#consent').checked=true");
+  await window.loadFile(path.join(__dirname,'../renderer/index.html'));await wait(250);
+  assert.equal(await run("document.querySelector('#commonTitle').value"),'测试标题');
+  assert.equal(await run("document.querySelector('#commonDescription').value"),'保留的简介');
+  assert.equal(await run('media.video.path'),'C:/fixture.mp4');
+  assert.equal(await run("document.querySelector('#prepareAll').disabled"),false);
+  assert.equal(await run("document.querySelector('#consent').checked"),false,'Reload never restores permission to publish');
+  await run("document.querySelector('#prepareAll').click()");
+  for(let i=0;i<100;i++){if(await run('!busy'))break;await wait(100)}
+  assert.equal(await run('prepared.size'),2);
+  assert(calls.filter(x=>x.name==='attachMedia').every(x=>x.args[0].kind==='video'));
+  assert.equal(calls.filter(x=>x.name==='selectMedia').length,0,'Retry uses restored video without a file picker');
   rejectProbe=true;
   await run("document.querySelector('[data-probe=douyin]').click()");await wait(100);
   assert.equal(await run("document.querySelector('[data-probe=douyin]').disabled"),false,'Failed probe must release its button');
@@ -48,7 +67,7 @@ app.whenReady().then(async()=>{
     assert(await run("document.querySelector('#prepareAll').getBoundingClientRect().width>0"));
   }
   window.webContents.setZoomFactor(1);
-  if(process.env.BLOCKCAST_UI_ARTIFACT){fs.mkdirSync(path.dirname(process.env.BLOCKCAST_UI_ARTIFACT),{recursive:true});fs.writeFileSync(process.env.BLOCKCAST_UI_ARTIFACT,(await window.webContents.capturePage()).toPNG())}
+  if(process.env.BLOCKCAST_UI_ARTIFACT){window.setContentSize(1280,1650);await wait(200);fs.mkdirSync(path.dirname(process.env.BLOCKCAST_UI_ARTIFACT),{recursive:true});fs.writeFileSync(process.env.BLOCKCAST_UI_ARTIFACT,(await window.webContents.capturePage()).toPNG())}
   assert.deepEqual(errors,[],'No renderer runtime or CSP failures');
   window.destroy();
   const page=new BrowserWindow({show:false,webPreferences:{contextIsolation:true,nodeIntegration:false,sandbox:true}});

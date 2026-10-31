@@ -1,6 +1,6 @@
 {
   "name": "blockcast-desktop",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "private": true,
   "license": "MIT",
   "author": "Blockcast Studio",
@@ -9,9 +9,8 @@
   "scripts": {
     "start": "electron .",
     "check": "node --check main.js && node --check preload.js && node --check renderer/app.js",
-    "test": "npm run check && node tests/static-check.js && node --test tests/hardening-check.js && node tests/cover-adapter-check.js && npm run test:image && npm run test:ui",
+    "test": "npm run check && node tests/static-check.js && node --test tests/hardening-check.js tests/recovery-check.js && npm run test:ui",
     "test:ui": "electron tests/workflow-integration.js",
-    "test:image": "electron tests/cover-image-integration.js",
     "pack": "electron-builder --dir",
     "dist": "electron-builder --win nsis",
     "release": "powershell -ExecutionPolicy Bypass -File ./scripts/build-release.ps1"
@@ -36,7 +35,14 @@
       "package.json"
     ],
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "artifactName": "Blockcast-Studio-Setup-${version}.${ext}",
       "icon": "build/icon.png"
     },

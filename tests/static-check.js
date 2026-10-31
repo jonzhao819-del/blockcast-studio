@@ -12,7 +12,6 @@ const lock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'u
 const adapters = fs.readFileSync(path.join(root, 'lib', 'platform-adapters.js'), 'utf8');
 const preload = fs.readFileSync(path.join(root, 'preload.js'), 'utf8');
 const renderer = fs.readFileSync(path.join(root, 'renderer', 'app.js'), 'utf8');
-const coverAdapter = fs.readFileSync(path.join(root, 'lib', 'cover-adapter.js'), 'utf8');
 
 assert(main.includes('--remote-debugging-port=0'), 'Edge must use a random debugging port');
 assert(main.includes('--remote-debugging-address=127.0.0.1'), 'Edge debugging must be loopback-only');
@@ -32,11 +31,6 @@ assert(html.includes('data-probe="douyin"') && html.includes('data-probe="bilibi
 assert(html.includes('id="prepareAll"') && !html.includes('id="attachAll"') && !html.includes('id="syncMetadata"'), 'The primary workflow must be a single prepare-drafts action');
 assert(renderer.includes('waitForForm') && renderer.includes('Promise.all(jobs)'), 'The one-click workflow must wait for real forms and prepare platforms concurrently');
 assert(preload.includes('webUtils.getPathForFile'), 'Drag/drop must resolve local paths through Electron webUtils');
-assert(main.includes("media:prepare-bilibili-cover") && preload.includes('prepareBilibiliCover'), 'Bilibili cover preparation must be exposed through isolated IPC');
-assert(html.includes('id="bilibiliCoverPreview"') && html.includes('id="confirmBilibiliCover"'), 'Bilibili cover preview and confirmation UI are required');
-assert(html.includes('id="selectBilibiliCover"') && renderer.includes("bilibiliCoverMode=custom?'custom':'fallback'"), 'Bilibili must support a platform-specific landscape cover override');
-assert(renderer.includes('bilibiliConfirmed') && renderer.includes("filePath:media.bilibiliCover.path"), 'Only the confirmed derived Bilibili cover may enter upload');
-assert(coverAdapter.includes("flag: 'wx'") && coverAdapter.includes('derivedFilePath'), 'Derived covers must be new files and never overwrite the source');
 assert(!css.includes('fonts.googleapis.com'), 'Renderer must work offline');
 assert(pkg.build?.nsis && pkg.build?.win, 'Windows installer configuration is required');
 assert(pkg.build.files.includes('lib/**/*'), 'Security helpers must be packaged');

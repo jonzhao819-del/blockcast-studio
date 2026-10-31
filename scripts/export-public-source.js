@@ -6,9 +6,9 @@ if(!destination)throw new Error('Provide a NEW destination directory');
 if(fs.existsSync(destination))throw new Error('Destination exists; refusing to overwrite or mix source trees');
 if(destination===root || destination.startsWith(root+path.sep))throw new Error('Destination must be outside the development project');
 const directories=['lib','renderer','website','.github'];
-const files=['main.js','preload.js','package.json','package-lock.json','LICENSE','README.md','SECURITY.md','CONTRIBUTING.md','PUBLIC_RELEASE.md','RELEASE_NOTES_0.4.0.md','AUDIT_0.4.0.md','TESTING.md','INSTALL_UPGRADE.md','SIGNING.md','CLEAN_MACHINE_TEST.md','.gitignore','build/icon.png',
+const files=['main.js','preload.js','package.json','package-lock.json','LICENSE','README.md','SECURITY.md','CONTRIBUTING.md','PUBLIC_RELEASE.md','RELEASE_NOTES_0.4.0.md','RELEASE_NOTES_0.4.1.md','AUDIT_0.4.0.md','TESTING.md','INSTALL_UPGRADE.md','SIGNING.md','CLEAN_MACHINE_TEST.md','.gitignore','build/icon.png',
   'scripts/build-release.ps1','scripts/generate-icon.ps1','scripts/verify-release.ps1','scripts/collect-clean-machine-report.ps1','scripts/build-website.js','scripts/export-public-source.js',
-  'tests/static-check.js','tests/hardening-check.js','tests/cover-adapter-check.js','tests/cover-image-integration.js','tests/workflow-integration.js','tests/workflow-preload.js','tests/website-check.js','tests/website-render-check.js'];
+  'tests/static-check.js','tests/hardening-check.js','tests/recovery-check.js','tests/workflow-integration.js','tests/workflow-preload.js','tests/website-check.js','tests/website-render-check.js'];
 function collect(relative){
   const absolute=path.join(root,relative);const stat=fs.lstatSync(absolute);
   if(stat.isSymbolicLink())throw new Error('Symlink rejected: '+relative);

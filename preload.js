@@ -10,7 +10,7 @@ contextBridge.exposeInMainWorld('blockcast', {
   reviewAll: () => ipcRenderer.invoke('platform:review-all'),
   selectMedia: kind => ipcRenderer.invoke('media:select', kind),
   resolveDroppedMedia: (file, kind) => ipcRenderer.invoke('media:from-path', { filePath: webUtils.getPathForFile(file), kind }),
-  prepareBilibiliCover: filePath => ipcRenderer.invoke('media:prepare-bilibili-cover', { filePath }),
+  restoreMedia: () => ipcRenderer.invoke('media:restore'),
   attachMedia: payload => ipcRenderer.invoke('media:attach', payload),
   fillPlatform: payload => ipcRenderer.invoke('platform:fill', payload),
   publish: id => ipcRenderer.invoke('platform:publish', id),

@@ -6,13 +6,13 @@
   "repositoryPublished": true,
   "license": "MIT",
   "release": {
-    "version": "0.4.0",
-    "tag": "v0.4.0",
-    "asset": "Blockcast-Studio-Setup-0.4.0.exe",
-    "sizeBytes": 104152377,
-    "sha256": "D77A62426B4FA7A93119E2644B58B6D33475474F12E830B05DD31BB96B309C24",
-    "published": true,
+    "version": "0.4.1",
+    "tag": "v0.4.1",
+    "asset": "Blockcast-Studio-Setup-0.4.1.exe",
+    "sizeBytes": 104150659,
+    "sha256": "8452DFE5C8257A514A3939050CE60984119FA3C52DCF5192B4F37EA25392C4DC",
+    "published": false,
     "signed": false,
-    "verifiedAt": "2026-10-30"
+    "verifiedAt": "2026-10-31"
   }
 }

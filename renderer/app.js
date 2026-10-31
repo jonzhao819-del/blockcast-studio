@@ -4,9 +4,8 @@ const platforms = {
   wechat: { name:'视频号', icon:'视' }
 };
 let states = {};
-let media = { video:null, cover:null, bilibiliCover:null, bilibiliCoverMode:null, bilibiliConfirmed:false };
+let media = { video:null };
 let busy = false;
-let coverGeneration = 0;
 const prepared = new Set();
 const $ = s => document.querySelector(s);
 const escapeHTML = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
@@ -16,33 +15,19 @@ window.addEventListener('unhandledrejection', event => { event.preventDefault();
 function invalidateReview(){ $('#consent').checked=false; $('#publishAll').disabled=true; }
 function setBusy(value){
   busy=value;
-  document.querySelectorAll('.metadata-card input,.metadata-card textarea,.metadata-card select,[data-probe],.media-box,#selectBilibiliCover,#confirmBilibiliCover,#resetLogins,#openAll').forEach(element=>element.disabled=value);
+  document.querySelectorAll('.metadata-card input,.metadata-card textarea,.metadata-card select,[data-probe],.media-box,#resetLogins,#openAll').forEach(element=>element.disabled=value);
   $('#prepareAll').disabled=value||!media.video;
   $('#consent').disabled=value;
-  if(!value)$('#confirmBilibiliCover').disabled=!media.bilibiliCover;
   invalidateReview();renderPlatforms();
 }
-document.querySelector('.metadata-card').addEventListener('input',()=>{ prepared.clear();invalidateReview(); });
+document.querySelector('.metadata-card').addEventListener('input',()=>{ prepared.clear();invalidateReview();saveDraft(); });
+document.querySelector('.metadata-card').addEventListener('change',saveDraft);
 function formatSize(bytes){const units=['B','KB','MB','GB'];let n=bytes,i=0;while(n>1024&&i<3){n/=1024;i++}return `${n.toFixed(i?1:0)} ${units[i]}`}
-async function prepareBilibiliCover(file,{custom=false}={}){
-  const generation=++coverGeneration;
-  const panel=$('#bilibiliCoverPanel'),preview=$('#bilibiliCoverPreview'),status=$('#bilibiliCoverStatus'),confirm=$('#confirmBilibiliCover');
-  media.bilibiliCover=null;media.bilibiliCoverMode=null;media.bilibiliConfirmed=false;panel.hidden=false;panel.classList.remove('confirmed','failed');preview.removeAttribute('src');status.textContent=custom?'正在检查你选择的 B 站独立封面……':'正在检查封面比例并准备 B 站回退版本……';confirm.disabled=true;confirm.textContent='确认使用此 B 站封面';
-  const result=await window.blockcast.prepareBilibiliCover(file.path);
-  if(generation!==coverGeneration)return;
-  if(!result?.ok){panel.classList.add('failed');status.textContent=`处理失败：${result?.error||'未知错误'}。你仍可到 B 站页面手动设置。`;toast('B 站封面处理失败，已保留手动回退');return}
-  media.bilibiliCover=result;media.bilibiliCoverMode=custom?'custom':'fallback';preview.src=result.previewDataUrl;
-  status.textContent=custom
-    ?(result.generated?`独立封面 ${result.sourceWidth}×${result.sourceHeight} 不是 4:3，已生成 ${result.width}×${result.height} 回退版本。`:`已选择 B 站独立横版封面 ${result.sourceWidth}×${result.sourceHeight}；不会影响抖音和视频号封面。`)
-    :(result.generated?`通用封面 ${result.sourceWidth}×${result.sourceHeight}，已生成 ${result.width}×${result.height} 的 4:3 回退版本；也可改选已重新排版的横版封面。`:`通用封面 ${result.sourceWidth}×${result.sourceHeight} 已接近 4:3，无需生成新文件。`);
-  confirm.disabled=false;toast(custom&&!result.generated?'B 站独立横版封面已读取，请确认':result.generated?'B 站 4:3 回退封面已生成，请预览确认':'封面已符合 B 站 4:3，请确认');
-}
-
 async function setMediaFile(file){
   if(busy)return;
   prepared.clear();invalidateReview();
   if(!file)return;media[file.kind]=file;$(`#${file.kind}Name`).textContent=`${file.name} · ${formatSize(file.size)} · ${file.path}`;$('#prepareAll').disabled=!media.video;renderSteps();toast(`${file.kind==='video'?'视频':'封面'}已读取，仅保存在本机`);
-  if(file.kind==='cover')await prepareBilibiliCover(file);
+  saveDraft();
 }
 
 function renderSteps(){const elements=[...document.querySelectorAll('.steps>div')];const active=prepared.size===3?2:media.video?1:0;elements.forEach((element,index)=>element.classList.toggle('active',index===active))}
@@ -50,10 +35,10 @@ function renderSteps(){const elements=[...document.querySelectorAll('.steps>div'
 function renderPlatforms(){
   $('#platformGrid').innerHTML=Object.entries(platforms).map(([id,p])=>{
     const s=states[id]||{}; const progress=Number.isFinite(s.progress)?Math.max(0,Math.min(100,s.progress)):0;
-    return `<article class="platform-card" data-id="${id}"><header><span class="badge">${p.icon}</span><div><b>${p.name}</b><small>专用 Edge 会话</small></div><i class="state-dot ${s.connected?'on':''}"></i></header><div class="platform-body"><p>${escapeHTML(s.status||'尚未打开')}</p><div class="track"><i style="width:${progress}%"></i></div><div class="card-actions"><button class="primary" data-open="${id}">${s.connected?'切换标签页':'在 Edge 打开'}</button><button data-reload="${id}">刷新</button></div></div></article>`;
+    return `<article class="platform-card" data-id="${id}"><header><span class="badge">${p.icon}</span><div><b>${p.name}</b><small>专用 Edge 会话</small></div><i class="state-dot ${s.connected?'on':''}"></i></header><div class="platform-body"><p>${escapeHTML(s.status||'尚未打开')}</p><div class="track"><i style="width:${progress}%"></i></div><div class="card-actions"><button class="primary" data-open="${id}">${s.connected?'切换标签页':'在 Edge 打开'}</button><button data-reload="${id}">重新连接</button></div></div></article>`;
   }).join('');
   document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>window.blockcast.openPlatform(b.dataset.open));
-  document.querySelectorAll('[data-reload]').forEach(b=>{b.disabled=busy;b.onclick=async()=>{invalidateReview();prepared.delete(b.dataset.reload);await window.blockcast.reloadPlatform(b.dataset.reload)}});
+  document.querySelectorAll('[data-reload]').forEach(b=>{b.disabled=busy;b.onclick=async()=>{invalidateReview();prepared.delete(b.dataset.reload);const result=await window.blockcast.reloadPlatform(b.dataset.reload);toast(result?.ok?'已重新连接，保留平台草稿和已选视频':result?.error||'连接暂未恢复，请切换到该平台页检查')}});
   document.querySelectorAll('.platform-card').forEach(card=>{const bar=card.querySelector('.track i');bar.style.width=`${Math.max(0,Math.min(100,states[card.dataset.id]?.progress||0))}%`;bar.setAttribute('aria-label','平台报告的上传进度')});
 }
 
@@ -113,18 +98,6 @@ document.querySelectorAll('[data-probe]').forEach(button=>button.onclick=async()
   finally{button.disabled=false;button.textContent=original;}
 });
 $('#openAll').onclick=()=>window.blockcast.openAll();
-$('#confirmBilibiliCover').onclick=()=>{
-  if(!media.bilibiliCover)return;
-  media.bilibiliConfirmed=true;
-  $('#bilibiliCoverPanel').classList.add('confirmed');
-  $('#confirmBilibiliCover').textContent='✓ 已确认使用此 B 站封面';
-  toast('B 站封面已人工确认，准备草稿时才会上传');
-};
-$('#selectBilibiliCover').onclick=async()=>{
-  if(busy)return;invalidateReview();prepared.delete('bilibili');
-  const file=await window.blockcast.selectMedia('cover');
-  if(file)await prepareBilibiliCover(file,{custom:true});
-};
 document.querySelectorAll('.media-box').forEach(button=>button.onclick=async()=>{
   const kind=button.dataset.kind; const file=await window.blockcast.selectMedia(kind); if(!file)return;
   await setMediaFile(file);
@@ -142,26 +115,20 @@ $('#prepareAll').onclick=async()=>{
   try{
   const jobs=Object.keys(platforms).map(async id=>{
     try{
-      const media=task.media;let needsReview=false;
-      if(!states[id]?.connected)throw new Error('请先打开并登录该平台');
-      addResult(id,'开始真实上传视频');
+      const media=task.media;
+      if(states[id]?.loginRequired)throw new Error('请先在专用 Edge 的该平台页完成登录');
+      addResult(id,'正在核对已选视频与平台草稿');
       const video=await window.blockcast.attachMedia({id,filePath:media.video.path,kind:'video'});if(!video.ok)throw new Error(video.error||'视频上传控件未响应');
+      addResult(id,video.status==='reused'?'继续使用平台已有视频，未重复上传':'视频已提交，等待平台上传与转码');
       await waitForForm(id);addResult(id,'投稿表单已出现，正在读取候选');
       const probed=await window.blockcast.probeOptions(id);if(!probed.ok)throw new Error(probed.error||'候选读取失败');
       const filled=await window.blockcast.fillPlatform({id,payload:task.payloads[id]});const details=filled.results?.map(item=>`${item.field}:${item.ok?'已确认':item.reason||'失败'}`).join('；')||filled.error||'无可填写字段';addResult(id,details,!!filled.ok);
-      if(media.cover&&id!=='bilibili'){const cover=await window.blockcast.attachMedia({id,filePath:media.cover.path,kind:'cover'});needsReview=true;addResult(id,cover.ok?'封面已提交控件，需在真实页面确认裁剪与保存':`封面需到平台页确认：${cover.error||'控件未响应'}`,false)}
-      if((media.cover||media.bilibiliCover)&&id==='bilibili'){
-        needsReview=true;
-        if(media.bilibiliCover&&media.bilibiliConfirmed){
-          const cover=await window.blockcast.attachMedia({id,filePath:media.bilibiliCover.path,kind:'cover'});
-          addResult(id,cover.ok?'已将确认的封面提交控件，需在 B 站确认裁剪与保存':`B 站封面自动上传失败，请到平台页手动设置：${cover.error||'控件未响应'}`,false);
-        }else addResult(id,'B 站封面尚未人工确认，未自动上传；请确认预览或到平台页手动设置',false);
-      }
-      if(filled.ok&&!needsReview)prepared.add(id);
+      addResult(id,'封面请到该平台投稿页手动上传，并确认裁剪与保存');
+      if(filled.ok)prepared.add(id);
     }catch(error){addResult(id,error.message||String(error),false)}
   });
-  await Promise.all(jobs);$('#mediaHint').textContent=`自动填写确认 ${prepared.size}/3；请检查各平台结果，未确认项目需在真实页完成。`;toast(`准备结束：${prepared.size}/3 自动确认，其余请查看结果`);
-  }finally{button.textContent='重新准备三个平台草稿';setBusy(false);renderSteps();}
+  await Promise.all(jobs);$('#mediaHint').textContent=`自动填写确认 ${prepared.size}/3；请检查各平台结果，封面需手动上传，未确认项目需在真实页完成。`;toast(`准备结束：${prepared.size}/3 自动确认，其余请查看结果`);
+  }finally{button.textContent='继续准备三个平台草稿';setBusy(false);renderSteps();}
 };
 document.querySelectorAll('[data-review]').forEach(button=>button.onclick=()=>window.blockcast.focusPlatform(button.dataset.review));
 $('#consent').onchange=e=>{const ready=!busy&&Object.keys(platforms).every(id=>states[id]?.connected&&states[id]?.readyToPublish);$('#publishAll').disabled=!e.target.checked||!ready;if(e.target.checked&&!ready){e.target.checked=false;toast('三平台尚未全部就绪，请先在真实投稿页补全并复核');}};
@@ -176,3 +143,10 @@ $('#publishAll').onclick=async()=>{
   }
   }finally{button.textContent='⚑ 最终发布到三个平台';setBusy(false);invalidateReview();}
 };
+
+const draftKey='blockcast-draft-v1';
+function draftControls(){return [...document.querySelectorAll('.metadata-card input,.metadata-card textarea,.metadata-card select')].filter(el=>!['partition','collection'].includes(el.dataset.field));}
+function controlKey(el){return el.id||el.closest('[data-override]').dataset.override+':'+el.dataset.field;}
+function saveDraft(){try{localStorage.setItem(draftKey,JSON.stringify(Object.fromEntries(draftControls().map(el=>[controlKey(el),el.value]))));}catch{toast('本机草稿保存失败，请检查磁盘空间');}}
+try{const saved=JSON.parse(localStorage.getItem(draftKey)||'{}');for(const el of draftControls()){const value=saved[controlKey(el)];if(typeof value==='string')el.value=value;}}catch{}
+window.blockcast.restoreMedia().then(result=>{if(result?.file&&!media.video&&!busy)setMediaFile(result.file);if(result?.error&&!media.video)toast(result.error);});
